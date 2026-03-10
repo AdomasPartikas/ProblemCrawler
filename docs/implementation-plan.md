@@ -34,18 +34,6 @@ Build a modular, source-agnostic pipeline where Reddit is the first collector im
 6.2 Add unit tests for parser, scoring, and clustering; add integration tests for database persistence and Ollama contract handling with mocks. *depends on Phases 3-5*
 6.3 Add seed configuration for subreddit lists and keyword dictionaries, plus documentation for extending new gatherers. *depends on final model and contracts*
 
-**Relevant files**
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.sln - Add new projects and references.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.API/Program.cs - Convert from hello-world entrypoint to DI registration, hosted pipeline scheduler, and read endpoints.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.API/appsettings.json - Add Reddit, PostgreSQL, Ollama, schedule, scoring, and clustering configs.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.API/appsettings.Development.json - Development overrides for local services.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.API/ProblemCrawler.API.csproj - Add project/package references.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.Core (new) - Canonical models and stage interfaces.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.Infrastructure (new) - EF Core DbContext, migrations, repositories.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/ProblemCrawler.Pipeline (new) - Collector/parser/analyzer/scoring/clustering services.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/docker-compose.yml (new) - PostgreSQL + API + optional Ollama container wiring.
-- c:/Users/Patrikas/source/repos/ProblemCrawler/README.md (new or updated) - Runbook, schedule behavior, extension guide for new data sources.
-
 **Verification**
 1. Build validation: run solution build and verify all projects compile.
 2. Migration validation: create and apply migrations against local PostgreSQL; verify tables and constraints for each stage output.
