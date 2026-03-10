@@ -1,4 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <ProjectReference Include="..\ProblemCrawler.Core\ProblemCrawler.Core.csproj" />
+    <ProjectReference Include="..\ProblemCrawler.Pipeline\ProblemCrawler.Pipeline.csproj" />
+    <ProjectReference Include="..\ProblemCrawler.Infrastructure\ProblemCrawler.Infrastructure.csproj" />
+  </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

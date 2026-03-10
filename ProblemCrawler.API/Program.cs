@@ -1,6 +1,12 @@
 var builder = WebApplication.CreateBuilder(args);
+
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/", () => Results.Ok(new
+{
+    Name = "ProblemCrawler",
+    Status = "running",
+    Timestamp = DateTimeOffset.UtcNow
+}));
 
 app.Run();
