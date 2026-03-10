@@ -2,10 +2,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 var app = builder.Build();
 
-app.MapGet("/", () => Results.Ok(new
+app.MapGet("/health", () => Results.Ok(new
 {
-    Name = "ProblemCrawler",
-    Status = "running",
+    Status = "Healthy!",
     Timestamp = DateTimeOffset.UtcNow
 }));
 
