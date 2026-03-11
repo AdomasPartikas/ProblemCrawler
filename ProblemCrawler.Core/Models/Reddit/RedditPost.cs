@@ -83,7 +83,7 @@ public class RedditPost : RedditChildData
     /// <summary>
     /// Whether this post is removed by a moderator
     /// </summary>
-    public bool RemovedByCategory { get; set; }
+    public string? RemovedByCategory { get; set; }
 
     /// <summary>
     /// The timestamp when this post was edited (0 or false if not edited)

@@ -1,7 +1,6 @@
 using AutoMapper;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
-using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
@@ -84,24 +83,17 @@ public class RedditCollector(
             _logger.LogDebug("Fetching page {PageNumber} from r/{Subreddit} (after={After})",
                 pageCount + 1, subreddit, after ?? "null");
 
-            var response = await _httpClient.GetSubredditPostsAsync(subreddit, after, cancellationToken);
-
-            if (response?.Data?.Children == null || response.Data.Children.Count == 0)
+            var page = await _httpClient.GetSubredditPostsAsync(subreddit, after, cancellationToken);
+            if (page.Posts.Count == 0)
             {
                 _logger.LogInformation("No more posts available from r/{Subreddit}", subreddit);
                 break;
             }
 
             // Process posts from this page
-            foreach (var child in response.Data.Children)
+            foreach (var post in page.Posts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                // Only process posts (t3), skip other types
-                if (!child.Kind.IsApiKind(RedditObjectKind.Post) || child.Data is not RedditPost post)
-                {
-                    continue;
-                }
 
                 // Yield the post itself
                 var postItem = _mapper.Map<CollectorItem>(post);
@@ -122,7 +114,7 @@ public class RedditCollector(
             }
 
             // Check for next page
-            after = response.Data.After;
+            after = page.After;
             if (string.IsNullOrEmpty(after))
             {
                 _logger.LogInformation("No more pages available for r/{Subreddit}", subreddit);
@@ -163,31 +155,16 @@ public class RedditCollector(
                 break;
             }
 
-            var response = await _httpClient.GetPostCommentsAsync(subreddit, post.Id!, after, cancellationToken);
-
-            if (response == null || response.Length < 2)
+            var page = await _httpClient.GetPostCommentsAsync(subreddit, post.Id!, after, cancellationToken);
+            if (page.Comments.Count == 0)
             {
                 _logger.LogDebug("No more comments available for post {PostId}", post.Id);
                 break;
             }
 
-            // Index 0 is the post, everything after index 0 are comments
-            var commentsListing = response[1];
-            if (commentsListing?.Data?.Children == null || commentsListing.Data.Children.Count == 0)
-            {
-                _logger.LogDebug("No comments in this batch for post {PostId}", post.Id);
-                break;
-            }
-
-            foreach (var child in commentsListing.Data.Children)
+            foreach (var comment in page.Comments)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-
-                // Only process comments (t1)
-                if (!child.Kind.IsApiKind(RedditObjectKind.Comment) || child.Data is not RedditComment comment)
-                {
-                    continue;
-                }
 
                 var commentItem = _mapper.Map<CollectorItem>(comment);
                 _logger.LogDebug("Collected comment: {CommentId} by {Author}", comment.Id, comment.Author);
@@ -204,7 +181,7 @@ public class RedditCollector(
             }
 
             // Check for next page of comments
-            after = commentsListing.Data.After;
+            after = page.After;
             if (string.IsNullOrEmpty(after))
             {
                 _logger.LogDebug("No more comment pages available for post {PostId}", post.Id);

@@ -114,5 +114,5 @@ public class RedditComment : RedditChildData
     /// <summary>
     /// Whether the comment violates community standards
     /// </summary>
-    public bool Controversiality { get; set; }
+    public int Controversiality { get; set; }
 }

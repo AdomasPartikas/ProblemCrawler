@@ -79,7 +79,7 @@ public class RedditChildData
     /// <summary>
     /// The timestamp when this object was created (UTC)
     /// </summary>
-    public long CreatedUtc { get; set; }
+    public double CreatedUtc { get; set; }
 
     /// <summary>
     /// The username of the author
