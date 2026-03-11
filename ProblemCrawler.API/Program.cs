@@ -1,11 +1,20 @@
+using ProblemCrawler.Collectors.Reddit.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+builder.Services.AddLogging();
+
+builder.Services.AddRedditCollector(builder.Configuration.GetSection("Collectors:Reddit"));
 
 var app = builder.Build();
 
-app.MapGet("/health", () => Results.Ok(new
+if (app.Environment.IsDevelopment())
 {
-    Status = "Healthy!",
-    Timestamp = DateTimeOffset.UtcNow
-}));
+    app.MapOpenApi();
+}
+
+app.MapControllers();
 
 app.Run();
