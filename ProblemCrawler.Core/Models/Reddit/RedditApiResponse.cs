@@ -29,7 +29,7 @@ public class RedditListingData
     /// <summary>
     /// Total number of items in this response
     /// </summary>
-    public int Dist { get; set; }
+    public int? Dist { get; set; }
 
     /// <summary>
     /// The moderation hash

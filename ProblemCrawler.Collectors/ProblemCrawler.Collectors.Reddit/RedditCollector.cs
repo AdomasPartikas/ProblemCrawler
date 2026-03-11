@@ -5,6 +5,7 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
+using ProblemCrawler.Collectors.Reddit.Records;
 using ProblemCrawler.Core.Constants;
 
 namespace ProblemCrawler.Collectors.Reddit;
@@ -33,13 +34,10 @@ public class RedditCollector(
     public async IAsyncEnumerable<ICollectorItem> GatherAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var subreddits = RedditSubredditCatalog.All
-            .Where(static subreddit => !string.IsNullOrWhiteSpace(subreddit))
-            .ToList();
+        var subreddits = GetConfiguredSubreddits();
 
-        if (subreddits.Count == 0)
+        if (HasNoSubreddits(subreddits))
         {
-            _logger.LogWarning("No subreddits configured in the Core subreddit catalog");
             yield break;
         }
 
@@ -66,63 +64,37 @@ public class RedditCollector(
     {
         _logger.LogInformation("Gathering posts from r/{Subreddit}", subreddit);
 
-        string? after = null;
+        string? afterToken = null;
         int pageCount = 0;
 
         while (true)
         {
-            if (_config.MaxPages.HasValue && _config.MaxPages > 0 && pageCount >= _config.MaxPages)
+            if (HasReachedPageLimit(pageCount, subreddit))
             {
-                _logger.LogInformation("Reached maximum page limit ({MaxPages}) for r/{Subreddit}",
-                    _config.MaxPages, subreddit);
                 break;
             }
 
             cancellationToken.ThrowIfCancellationRequested();
 
             _logger.LogDebug("Fetching page {PageNumber} from r/{Subreddit} (after={After})",
-                pageCount + 1, subreddit, after ?? "null");
+                pageCount + 1, subreddit, afterToken ?? "null");
 
-            var page = await _httpClient.GetSubredditPostsAsync(subreddit, after, cancellationToken);
-            if (page.Posts.Count == 0)
+            var page = await _httpClient.GetSubredditPostsAsync(subreddit, afterToken, cancellationToken);
+            if (HasNoPosts(page, subreddit))
             {
-                _logger.LogInformation("No more posts available from r/{Subreddit}", subreddit);
                 break;
             }
 
-            // Process posts from this page
-            foreach (var post in page.Posts)
+            await foreach (var item in GatherItemsFromPostsAsync(subreddit, page.Posts, cancellationToken))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                // Yield the post itself
-                var postItem = _mapper.Map<CollectorItem>(post);
-                _logger.LogDebug("Collected post: {PostId} - {Title}", post.Id, post.Title);
-                yield return postItem;
-
-                // Fetch and yield comments if configured
-                if (_config.FetchComments && post.NumComments > 0)
-                {
-                    await foreach (var commentItem in GatherCommentsForPostAsync(subreddit, post, cancellationToken))
-                    {
-                        yield return commentItem;
-                    }
-                }
-
-                // Respect rate limits between items
-                await Task.Delay(_config.RequestDelayMs, cancellationToken);
+                yield return item;
             }
 
-            // Check for next page
-            after = page.After;
-            if (string.IsNullOrEmpty(after))
+            if (!TryMoveToNextPage(page, subreddit, ref afterToken, ref pageCount))
             {
-                _logger.LogInformation("No more pages available for r/{Subreddit}", subreddit);
                 break;
             }
 
-            pageCount++;
-            _logger.LogDebug("Moving to next page for r/{Subreddit}", subreddit);
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }
     }
@@ -144,21 +116,14 @@ public class RedditCollector(
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (_config.MaxCommentsPerPost.HasValue &&
-                _config.MaxCommentsPerPost > 0 &&
-                commentCount >= _config.MaxCommentsPerPost)
+            if (HasReachedCommentLimit(commentCount, post.Id))
             {
-                _logger.LogDebug(
-                    "Reached maximum comment limit ({MaxComments}) for post {PostId}",
-                    _config.MaxCommentsPerPost,
-                    post.Id);
                 break;
             }
 
             var page = await _httpClient.GetPostCommentsAsync(subreddit, post.Id!, after, cancellationToken);
-            if (page.Comments.Count == 0)
+            if (HasNoComments(page, post.Id))
             {
-                _logger.LogDebug("No more comments available for post {PostId}", post.Id);
                 break;
             }
 
@@ -172,9 +137,7 @@ public class RedditCollector(
 
                 commentCount++;
 
-                if (_config.MaxCommentsPerPost.HasValue &&
-                    _config.MaxCommentsPerPost > 0 &&
-                    commentCount >= _config.MaxCommentsPerPost)
+                if (HasReachedCommentLimit(commentCount, post.Id))
                 {
                     break;
                 }
@@ -192,5 +155,114 @@ public class RedditCollector(
         }
 
         _logger.LogDebug("Completed gathering comments for post {PostId}", post.Id);
+    }
+
+    private static List<string> GetConfiguredSubreddits() =>
+        RedditSubredditCatalog.All
+            .Where(static subreddit => !string.IsNullOrWhiteSpace(subreddit))
+            .ToList();
+
+    private bool HasNoSubreddits(IReadOnlyCollection<string> subreddits)
+    {
+        if (subreddits.Count > 0)
+        {
+            return false;
+        }
+
+        _logger.LogWarning("No subreddits configured in the Core subreddit catalog");
+        return true;
+    }
+
+    private bool HasReachedPageLimit(int pageCount, string subreddit)
+    {
+        if (!_config.MaxPages.HasValue || _config.MaxPages <= 0 || pageCount < _config.MaxPages)
+        {
+            return false;
+        }
+
+        _logger.LogInformation("Reached maximum page limit ({MaxPages}) for r/{Subreddit}",
+            _config.MaxPages, subreddit);
+        return true;
+    }
+
+    private bool HasNoPosts(RedditPostsPage page, string subreddit)
+    {
+        if (page.Posts.Count > 0)
+        {
+            return false;
+        }
+
+        _logger.LogInformation("No more posts available from r/{Subreddit}", subreddit);
+        return true;
+    }
+
+    private async IAsyncEnumerable<ICollectorItem> GatherItemsFromPostsAsync(
+        string subreddit,
+        IReadOnlyList<RedditPost> posts,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        foreach (var post in posts)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var postItem = _mapper.Map<CollectorItem>(post);
+            _logger.LogDebug("Collected post: {PostId} - {Title}", post.Id, post.Title);
+            yield return postItem;
+
+            if (_config.FetchComments && post.NumComments > 0)
+            {
+                await foreach (var commentItem in GatherCommentsForPostAsync(subreddit, post, cancellationToken))
+                {
+                    yield return commentItem;
+                }
+            }
+
+            await Task.Delay(_config.RequestDelayMs, cancellationToken);
+        }
+    }
+
+    private bool TryMoveToNextPage(
+        RedditPostsPage page,
+        string subreddit,
+        ref string? afterToken,
+        ref int pageCount)
+    {
+        afterToken = page.After;
+        if (string.IsNullOrEmpty(afterToken))
+        {
+            _logger.LogInformation("No more pages available for r/{Subreddit}", subreddit);
+            return false;
+        }
+
+        pageCount++;
+        _logger.LogDebug("Moving to next page for r/{Subreddit}", subreddit);
+        return true;
+    }
+
+    private bool HasReachedCommentLimit(int commentCount, string? postId)
+    {
+        if (!_config.MaxCommentsPerPost.HasValue ||
+            _config.MaxCommentsPerPost <= 0 ||
+            commentCount < _config.MaxCommentsPerPost)
+        {
+            return false;
+        }
+
+        _logger.LogDebug(
+            "Reached maximum comment limit ({MaxComments}) for post {PostId}",
+            _config.MaxCommentsPerPost,
+            postId);
+        return true;
+    }
+
+    private bool HasNoComments(RedditCommentsPage page, string? postId)
+    {
+        if (page.Comments.Count > 0)
+        {
+            return false;
+        }
+
+        _logger.LogDebug("No more comments available for post {PostId}", postId);
+        return true;
     }
 }

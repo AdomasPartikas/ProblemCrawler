@@ -1,10 +1,11 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Collectors.Reddit.Contracts;
-using ProblemCrawler.Core.Models.Reddit;
+using ProblemCrawler.Collectors.Reddit.Serialization;
+using ProblemCrawler.Collectors.Reddit.Records;
 using ProblemCrawler.Core.Enums;
+using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Extensions;
 
 namespace ProblemCrawler.Collectors.Reddit.Services;
@@ -19,16 +20,6 @@ public class RedditHttpClient
     private readonly RedditCollectorConfiguration _config;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public sealed record RedditPostsPage(string? After, IReadOnlyList<RedditPost> Posts)
-    {
-        public static RedditPostsPage Empty { get; } = new(null, []);
-    }
-
-    public sealed record RedditCommentsPage(string? After, IReadOnlyList<RedditComment> Comments)
-    {
-        public static RedditCommentsPage Empty { get; } = new(null, []);
-    }
-
     public RedditHttpClient(
         HttpClient httpClient,
         ILogger<RedditHttpClient> logger,
@@ -38,14 +29,7 @@ public class RedditHttpClient
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _config = config ?? throw new ArgumentNullException(nameof(config));
 
-        // Configure JSON serialization to handle Reddit's naming conventions
-        _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = false
-        };
+        _jsonOptions = RedditJsonSerializerOptionsFactory.Create();
     }
 
     /// <summary>
@@ -64,10 +48,8 @@ public class RedditHttpClient
             throw new ArgumentException("Subreddit name cannot be empty", nameof(subreddit));
 
         var url = BuildSubredditUrl(subreddit, after);
-        var document = await FetchDocumentWithRetryAsync(url, cancellationToken);
-        return document is null
-            ? RedditPostsPage.Empty
-            : ParsePostsPage(document.RootElement);
+        var response = await FetchWithRetryAsync<RedditApiResponse>(url, cancellationToken);
+        return BuildPostsPage(response);
     }
 
     /// <summary>
@@ -91,10 +73,8 @@ public class RedditHttpClient
             throw new ArgumentException("Post ID cannot be empty", nameof(postId));
 
         var url = BuildPostCommentsUrl(subreddit, postId, after);
-        var document = await FetchDocumentWithRetryAsync(url, cancellationToken);
-        return document is null
-            ? RedditCommentsPage.Empty
-            : ParseCommentsPage(document.RootElement);
+        var response = await FetchWithRetryAsync<RedditApiResponse[]>(url, cancellationToken);
+        return BuildCommentsPage(response);
     }
 
     /// <summary>
@@ -128,9 +108,9 @@ public class RedditHttpClient
     }
 
     /// <summary>
-    /// Fetches raw JSON from Reddit with automatic retry logic.
+    /// Fetches and deserializes data from Reddit with automatic retry logic.
     /// </summary>
-    private async Task<JsonDocument?> FetchDocumentWithRetryAsync(string url, CancellationToken cancellationToken)
+    private async Task<T?> FetchWithRetryAsync<T>(string url, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Fetching from Reddit: {Url}", url);
 
@@ -149,7 +129,7 @@ public class RedditHttpClient
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
-                    var result = JsonDocument.Parse(content);
+                    var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
                     _logger.LogDebug("Successfully fetched from Reddit");
                     return result;
                 }
@@ -202,106 +182,53 @@ public class RedditHttpClient
         }
 
         _logger.LogError("Failed to fetch from Reddit after {MaxRetries} attempts", _config.MaxRetries);
-        return null;
+        return default;
     }
 
-    private RedditPostsPage ParsePostsPage(JsonElement root)
+    private static RedditPostsPage BuildPostsPage(RedditApiResponse? response)
     {
-        var listingData = GetListingData(root);
-        if (listingData is null)
+        if (response?.Data?.Children is null || response.Data.Children.Count == 0)
         {
             return RedditPostsPage.Empty;
         }
 
-        var after = GetOptionalString(listingData.Value, "after");
-        var posts = ParseChildrenByKind<RedditPost>(listingData.Value, RedditObjectKind.Post);
-        return new RedditPostsPage(after, posts);
+        var posts = response.Data.Children
+            .Select(static child => child.Data as RedditPost)
+            .Where(static post => post is not null)
+            .Select(static post => post!)
+            .ToList();
+
+        return posts.Count == 0
+            ? RedditPostsPage.Empty
+            : new RedditPostsPage(response.Data.After, posts);
     }
 
-    private RedditCommentsPage ParseCommentsPage(JsonElement root)
+    private static RedditCommentsPage BuildCommentsPage(RedditApiResponse[]? responses)
     {
-        if (root.ValueKind != JsonValueKind.Array || root.GetArrayLength() < 2)
+        var commentsListing = GetCommentsListing(responses);
+        if (commentsListing?.Data?.Children is null || commentsListing.Data.Children.Count == 0)
         {
             return RedditCommentsPage.Empty;
         }
 
-        var commentsListing = root[1];
-        var listingData = GetListingData(commentsListing);
-        if (listingData is null)
-        {
-            return RedditCommentsPage.Empty;
-        }
+        var comments = commentsListing.Data.Children
+            .Select(static child => child.Data as RedditComment)
+            .Where(static comment => comment is not null)
+            .Select(static comment => comment!)
+            .ToList();
 
-        var after = GetOptionalString(listingData.Value, "after");
-        var comments = ParseChildrenByKind<RedditComment>(listingData.Value, RedditObjectKind.Comment);
-        return new RedditCommentsPage(after, comments);
+        return comments.Count == 0
+            ? RedditCommentsPage.Empty
+            : new RedditCommentsPage(commentsListing.Data.After, comments);
     }
 
-    private List<T> ParseChildrenByKind<T>(JsonElement listingData, RedditObjectKind expectedKind)
+    private static RedditApiResponse? GetCommentsListing(RedditApiResponse[]? responses)
     {
-        var results = new List<T>();
-        if (!listingData.TryGetProperty("children", out var children) || children.ValueKind != JsonValueKind.Array)
-        {
-            return results;
-        }
-
-        foreach (var child in children.EnumerateArray())
-        {
-            var kind = GetOptionalString(child, "kind");
-            if (!kind.IsApiKind(expectedKind))
-            {
-                continue;
-            }
-
-            if (!child.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            try
-            {
-                var model = data.Deserialize<T>(_jsonOptions);
-                if (model is not null)
-                {
-                    results.Add(model);
-                }
-            }
-            catch (JsonException ex)
-            {
-                _logger.LogWarning(ex, "Failed to deserialize Reddit child of kind {Kind}", kind);
-            }
-        }
-
-        return results;
-    }
-
-    private static JsonElement? GetListingData(JsonElement element)
-    {
-        if (element.ValueKind != JsonValueKind.Object)
+        if (responses is null || responses.Length < 2)
         {
             return null;
         }
 
-        if (!element.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
-        {
-            return null;
-        }
-
-        return data;
-    }
-
-    private static string? GetOptionalString(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var value))
-        {
-            return null;
-        }
-
-        return value.ValueKind switch
-        {
-            JsonValueKind.String => value.GetString(),
-            JsonValueKind.Null => null,
-            _ => value.ToString()
-        };
+        return responses[1];
     }
 }
