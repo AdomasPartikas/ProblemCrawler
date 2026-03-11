@@ -1,4 +1,4 @@
-namespace ProblemCrawler.Core.Models;
+namespace ProblemCrawler.Core.Models.Reddit;
 
 /// <summary>
 /// Represents a Reddit post/submission (t3 object type).

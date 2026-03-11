@@ -1,4 +1,4 @@
-namespace ProblemCrawler.Core.Models;
+namespace ProblemCrawler.Core.Models.Reddit;
 
 public class RedditApiResponse
 {

@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -21,6 +22,7 @@ public static class RedditCollectorServiceCollectionExtensions
     {
         services.Configure<RedditCollectorConfiguration>(configurationSection);
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<RedditCollectorConfiguration>>().Value);
+        services.AddAutoMapper(typeof(RedditCollectorMappingProfile).Assembly);
 
         services.AddHttpClient<RedditHttpClient>((sp, client) =>
         {

@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Collectors.Reddit.Contracts;
-using ProblemCrawler.Core.Models;
+using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Extensions;
 

@@ -1,8 +1,10 @@
+using AutoMapper;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
+using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Core.Constants;
 
@@ -15,13 +17,15 @@ namespace ProblemCrawler.Collectors.Reddit;
 public class RedditCollector(
     RedditHttpClient httpClient,
     ILogger<RedditCollector> logger,
-    RedditCollectorConfiguration config) : ICollector
+    RedditCollectorConfiguration config,
+    IMapper mapper) : ICollector
 {
     public string Name => "Reddit";
 
     private readonly RedditHttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly ILogger<RedditCollector> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly RedditCollectorConfiguration _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly IMapper _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
 
     /// <summary>
     /// Gathers posts and comments from configured subreddits.
@@ -100,7 +104,7 @@ public class RedditCollector(
                 }
 
                 // Yield the post itself
-                var postItem = RedditCollectorItem.FromPost(post);
+                var postItem = _mapper.Map<CollectorItem>(post);
                 _logger.LogDebug("Collected post: {PostId} - {Title}", post.Id, post.Title);
                 yield return postItem;
 
@@ -185,7 +189,7 @@ public class RedditCollector(
                     continue;
                 }
 
-                var commentItem = RedditCollectorItem.FromComment(comment);
+                var commentItem = _mapper.Map<CollectorItem>(comment);
                 _logger.LogDebug("Collected comment: {CommentId} by {Author}", comment.Id, comment.Author);
                 yield return commentItem;
 
