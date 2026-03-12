@@ -150,7 +150,7 @@ public class RedditCollector(
         [.. RedditSubredditCatalog.All.Where(static subreddit => !string.IsNullOrWhiteSpace(subreddit))];
 
     private bool HasReachedPageLimit(int pageCount) =>
-         !_config.MaxPages.HasValue || _config.MaxPages <= 0 || pageCount < _config.MaxPages;
+         _config.MaxPages.HasValue && _config.MaxPages > 0 && pageCount >= _config.MaxPages;
 
     private static bool HasNoPosts(RedditPostsPage page) =>
          page.Posts.Count == 0;
@@ -198,7 +198,7 @@ public class RedditCollector(
     }
 
     private bool HasReachedCommentLimit(int commentCount) =>
-         !_config.MaxCommentsPerPost.HasValue || _config.MaxCommentsPerPost <= 0 || commentCount < _config.MaxCommentsPerPost;
+         _config.MaxCommentsPerPost.HasValue && _config.MaxCommentsPerPost > 0 && commentCount >= _config.MaxCommentsPerPost;
 
     private static bool HasNoComments(RedditCommentsPage page) =>
          page.Comments.Count == 0;
