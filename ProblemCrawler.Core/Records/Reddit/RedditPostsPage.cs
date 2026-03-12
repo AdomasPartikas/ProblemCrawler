@@ -1,6 +1,6 @@
 using ProblemCrawler.Core.Models.Reddit;
 
-namespace ProblemCrawler.Collectors.Reddit.Records;
+namespace ProblemCrawler.Core.Records.Reddit;
 
 public sealed record RedditPostsPage(string? After, IReadOnlyList<RedditPost> Posts)
 {

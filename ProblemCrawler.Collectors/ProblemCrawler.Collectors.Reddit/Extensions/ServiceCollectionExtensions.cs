@@ -32,7 +32,7 @@ public static class RedditCollectorServiceCollectionExtensions
         });
 
         services.AddScoped<ICollector, RedditCollector>();
-
+        services.AddScoped<ICollectionService, CollectionService>();
         return services;
     }
 }

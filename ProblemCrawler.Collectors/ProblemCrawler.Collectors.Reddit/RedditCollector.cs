@@ -5,8 +5,8 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
-using ProblemCrawler.Collectors.Reddit.Records;
 using ProblemCrawler.Core.Constants;
+using ProblemCrawler.Core.Records.Reddit;
 
 namespace ProblemCrawler.Collectors.Reddit;
 

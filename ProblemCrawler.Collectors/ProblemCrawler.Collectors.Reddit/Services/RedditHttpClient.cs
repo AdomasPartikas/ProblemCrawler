@@ -3,10 +3,10 @@ using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Collectors.Reddit.Contracts;
 using ProblemCrawler.Collectors.Reddit.Serialization;
-using ProblemCrawler.Collectors.Reddit.Records;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Extensions;
+using ProblemCrawler.Core.Records.Reddit;
 
 namespace ProblemCrawler.Collectors.Reddit.Services;
 

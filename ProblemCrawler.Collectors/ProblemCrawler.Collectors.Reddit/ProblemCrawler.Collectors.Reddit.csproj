@@ -8,12 +8,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ProblemCrawler.Core\ProblemCrawler.Core.csproj" />
+    <ProjectReference Include="..\..\ProblemCrawler.Infrastructure\ProblemCrawler.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="13.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.4" />
   </ItemGroup>
 
 </Project>
