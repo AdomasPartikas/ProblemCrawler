@@ -66,6 +66,7 @@ public class RedditCollectorMappingProfile : Profile
             ["IsLocked"] = src.Locked,
             ["Distinguished"] = src.Distinguished,
             ["IsPremium"] = src.AuthorPremium,
+            ["Controversiality"] = src.Controversiality,
             ["RawComment"] = src,
         };
     }
