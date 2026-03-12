@@ -13,24 +13,15 @@ namespace ProblemCrawler.Collectors.Reddit.Services;
 /// <summary>
 /// HTTP client for fetching data from the Reddit API using public endpoints (no authentication required).
 /// </summary>
-public class RedditHttpClient
+public class RedditHttpClient(
+    HttpClient httpClient,
+    ILogger<RedditHttpClient> logger,
+    RedditCollectorConfiguration config)
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<RedditHttpClient> _logger;
-    private readonly RedditCollectorConfiguration _config;
-    private readonly JsonSerializerOptions _jsonOptions;
-
-    public RedditHttpClient(
-        HttpClient httpClient,
-        ILogger<RedditHttpClient> logger,
-        RedditCollectorConfiguration config)
-    {
-        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _config = config ?? throw new ArgumentNullException(nameof(config));
-
-        _jsonOptions = RedditJsonSerializerOptionsFactory.Create();
-    }
+    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    private readonly ILogger<RedditHttpClient> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly RedditCollectorConfiguration _config = config ?? throw new ArgumentNullException(nameof(config));
+    private readonly JsonSerializerOptions _jsonOptions = RedditJsonSerializerOptionsFactory.Create();
 
     /// <summary>
     /// Fetches a page of posts from a subreddit.
@@ -98,27 +89,22 @@ public class RedditHttpClient
     /// <summary>
     /// Builds the URL for fetching comments on a post.
     /// </summary>
-    private string BuildPostCommentsUrl(string subreddit, string postId, string? after)
-    {
-        return RedditApiRouteBuilder.BuildPostCommentsUrl(
-            _config.BaseUrl,
-            subreddit,
-            postId,
-            after);
-    }
+    private string BuildPostCommentsUrl(string subreddit, string postId, string? after) =>
+            RedditApiRouteBuilder.BuildPostCommentsUrl(
+                _config.BaseUrl,
+                subreddit,
+                postId,
+                after);
 
     /// <summary>
     /// Fetches and deserializes data from Reddit with automatic retry logic.
     /// </summary>
     private async Task<T?> FetchWithRetryAsync<T>(string url, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Fetching from Reddit: {Url}", url);
-
         for (int attempt = 0; attempt < _config.MaxRetries; attempt++)
         {
             try
             {
-                // Add delay between requests to respect rate limits
                 if (attempt > 0)
                 {
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
@@ -130,44 +116,15 @@ public class RedditHttpClient
                 {
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
                     var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
-                    _logger.LogDebug("Successfully fetched from Reddit");
                     return result;
                 }
 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 1;
-                    _logger.LogWarning(
-                        "Rate limited by Reddit. Waiting {Seconds} seconds before retry",
-                        retryAfter);
                     await Task.Delay((int)(retryAfter * 1000), cancellationToken);
                     continue;
                 }
-
-                _logger.LogWarning(
-                    "Reddit returned {StatusCode} on attempt {Attempt}/{MaxRetries}",
-                    response.StatusCode,
-                    attempt + 1,
-                    _config.MaxRetries);
-
-                if (attempt < _config.MaxRetries - 1)
-                {
-                    await Task.Delay(_config.RequestDelayMs, cancellationToken);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Request was cancelled");
-                throw;
-            }
-            catch (HttpRequestException ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "HTTP error on attempt {Attempt}/{MaxRetries}: {Message}",
-                    attempt + 1,
-                    _config.MaxRetries,
-                    ex.Message);
 
                 if (attempt < _config.MaxRetries - 1)
                 {
@@ -222,13 +179,8 @@ public class RedditHttpClient
             : new RedditCommentsPage(commentsListing.Data.After, comments);
     }
 
-    private static RedditApiResponse? GetCommentsListing(RedditApiResponse[]? responses)
-    {
-        if (responses is null || responses.Length < 2)
-        {
-            return null;
-        }
-
-        return responses[1];
-    }
+    private static RedditApiResponse? GetCommentsListing(RedditApiResponse[]? responses) =>
+         responses is not null && responses.Length >= 2
+            ? responses[1]
+            : null;
 }

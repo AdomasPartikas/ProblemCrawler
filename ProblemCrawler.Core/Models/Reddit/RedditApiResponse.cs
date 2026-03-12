@@ -39,7 +39,7 @@ public class RedditListingData
     /// <summary>
     /// Collection of child objects (posts, comments, etc.)
     /// </summary>
-    public List<RedditChild> Children { get; set; } = new();
+    public List<RedditChild> Children { get; set; } = [];
 }
 
 public class RedditChild

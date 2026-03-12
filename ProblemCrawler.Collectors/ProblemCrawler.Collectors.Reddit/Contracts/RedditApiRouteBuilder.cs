@@ -1,10 +1,9 @@
+using ProblemCrawler.Core.Constants;
+
 namespace ProblemCrawler.Collectors.Reddit.Contracts;
 
 internal static class RedditApiRouteBuilder
 {
-    private const string TimeRangeKey = "t";
-    private const string AfterKey = "after";
-
     public static string BuildSubredditUrl(
         string baseUrl,
         string subreddit,
@@ -17,12 +16,12 @@ internal static class RedditApiRouteBuilder
 
         if (!string.IsNullOrWhiteSpace(timeRange))
         {
-            query.Add($"{TimeRangeKey}={Uri.EscapeDataString(timeRange)}");
+            query.Add($"{RedditCollectorContractConstants.TimeRangeKey}={Uri.EscapeDataString(timeRange)}");
         }
 
         if (!string.IsNullOrWhiteSpace(after))
         {
-            query.Add($"{AfterKey}={Uri.EscapeDataString(after)}");
+            query.Add($"{RedditCollectorContractConstants.AfterKey}={Uri.EscapeDataString(after)}");
         }
 
         return query.Count == 0
@@ -39,6 +38,6 @@ internal static class RedditApiRouteBuilder
             return url;
         }
 
-        return $"{url}?{AfterKey}={Uri.EscapeDataString(after)}";
+        return $"{url}?{RedditCollectorContractConstants.AfterKey}={Uri.EscapeDataString(after)}";
     }
 }
