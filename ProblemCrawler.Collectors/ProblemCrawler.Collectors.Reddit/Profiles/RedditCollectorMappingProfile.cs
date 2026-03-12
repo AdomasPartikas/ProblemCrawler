@@ -3,7 +3,7 @@ using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
 
-namespace ProblemCrawler.Collectors.Reddit.Extensions;
+namespace ProblemCrawler.Collectors.Reddit.Profiles;
 
 public class RedditCollectorMappingProfile : Profile
 {

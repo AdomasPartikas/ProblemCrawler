@@ -1,10 +1,10 @@
-using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Collectors.Reddit.Services;
+using ProblemCrawler.Collectors.Reddit.Profiles;
 
 namespace ProblemCrawler.Collectors.Reddit.Extensions;
 
