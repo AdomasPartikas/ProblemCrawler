@@ -16,6 +16,7 @@ internal static class RedditJsonSerializerOptionsFactory
         };
 
         options.Converters.Add(new RedditChildJsonConverter());
+        options.Converters.Add(new RedditRepliesConverter());
         return options;
     }
 }

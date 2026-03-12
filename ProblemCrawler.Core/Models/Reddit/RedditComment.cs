@@ -97,9 +97,11 @@ public class RedditComment : RedditChildData
     public string? SubredditId { get; set; }
 
     /// <summary>
-    /// Replies nested under this comment (not populated by API by default)
+    /// Replies nested under this comment.
+    /// The Reddit API returns this as either an empty string ("") when there are no replies,
+    /// or a full Listing object containing nested comment children.
     /// </summary>
-    public object? Replies { get; set; }
+    public RedditReplies? Replies { get; set; }
 
     /// <summary>
     /// Indicates if the comment is distinguishable (e.g., "moderator", "admin")

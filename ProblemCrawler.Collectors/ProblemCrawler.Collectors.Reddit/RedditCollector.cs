@@ -107,20 +107,32 @@ public class RedditCollector(
                 break;
             }
 
+            bool limitReached = false;
             foreach (var comment in page.Comments)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var commentItem = _mapper.Map<CollectorItem>(comment);
-
-                yield return commentItem;
-
+                yield return _mapper.Map<CollectorItem>(comment);
                 commentCount++;
 
                 if (HasReachedCommentLimit(commentCount))
-                {
                     break;
+
+                foreach (var reply in FlattenReplies(comment))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return _mapper.Map<CollectorItem>(reply);
+                    commentCount++;
+
+                    if (HasReachedCommentLimit(commentCount))
+                    {
+                        limitReached = true;
+                        break;
+                    }
                 }
+
+                if (limitReached)
+                    break;
             }
 
             after = page.After;
@@ -190,4 +202,24 @@ public class RedditCollector(
 
     private static bool HasNoComments(RedditCommentsPage page) =>
          page.Comments.Count == 0;
+
+    /// <summary>
+    /// Recursively flattens all nested replies of a comment into a single sequence.
+    /// </summary>
+    private static IEnumerable<RedditComment> FlattenReplies(RedditComment comment)
+    {
+        if (comment.Replies?.Data?.Children is not { Count: > 0 } children)
+            yield break;
+
+        foreach (var child in children)
+        {
+            if (child.Data is not RedditComment reply)
+                continue;
+
+            yield return reply;
+
+            foreach (var nested in FlattenReplies(reply))
+                yield return nested;
+        }
+    }
 }
