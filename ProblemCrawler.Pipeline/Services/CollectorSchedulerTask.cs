@@ -48,48 +48,9 @@ public sealed class CollectorSchedulerTask(
         var collectors = scope.ServiceProvider.GetServices<ICollector>().ToArray();
 
         if (collectors.Length == 0)
-        {
             return;
-        }
-
-        var totalItems = 0;
-        var successfulCollectors = 0;
-        var failedCollectors = 0;
 
         foreach (var collector in collectors)
-        {
-            var (succeeded, collectedItemCount) = await ExecuteCollectorAsync(collector);
-
-            if (succeeded)
-            {
-                successfulCollectors++;
-            }
-            else
-            {
-                failedCollectors++;
-            }
-
-            totalItems += collectedItemCount;
-        }
-    }
-
-    private static async Task<(bool Succeeded, int CollectedItemCount)> ExecuteCollectorAsync(ICollector collector)
-    {
-        var itemCount = 0;
-
-        try
-        {
-
-            await foreach (var _ in collector.GatherAsync())
-            {
-                itemCount++;
-            }
-
-            return (true, itemCount);
-        }
-        catch
-        {
-            return (false, itemCount);
-        }
+            await foreach (var _ in collector.GatherAsync());
     }
 }

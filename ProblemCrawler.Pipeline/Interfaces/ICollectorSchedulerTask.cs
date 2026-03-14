@@ -5,5 +5,5 @@ namespace ProblemCrawler.Pipeline.Interfaces;
 /// </summary>
 public interface ICollectorSchedulerTask
 {
-    Task ExecuteAsync();
+    public Task ExecuteAsync();
 }
