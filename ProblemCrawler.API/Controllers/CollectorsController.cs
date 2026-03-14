@@ -18,13 +18,6 @@ public sealed class CollectorsController(ICollector collector, ILogger<Collector
 
         await foreach (var item in _collector.GatherAsync(cancellationToken))
         {
-            _logger.LogInformation(
-                "Collected {ItemType} {ItemId} from {Source} by {Author}",
-                item.ItemType,
-                item.Id,
-                item.Source,
-                item.Author);
-
             items.Add(new CollectedItemResponse(
                 item.Id,
                 item.ItemType,

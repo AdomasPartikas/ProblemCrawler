@@ -6,6 +6,8 @@
     <ProjectReference Include="..\ProblemCrawler.Collectors\ProblemCrawler.Collectors.Reddit\ProblemCrawler.Collectors.Reddit.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
+    <PackageReference Include="Hangfire.InMemory" Version="1.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.13.6" />
   </ItemGroup>
