@@ -23,9 +23,13 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("ProblemCrawler.Core.Models.CollectorItem", b =>
+            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", b =>
                 {
-                    b.Property<string>("Id")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AnalysisStage")
                         .HasColumnType("text");
 
                     b.Property<string>("Author")
@@ -41,11 +45,24 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("LinkId")
+                        .HasColumnType("text");
+
                     b.Property<Dictionary<string, object>>("Metadata")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("ParentId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SelfText")
+                        .HasColumnType("text");
+
                     b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -53,6 +70,9 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SourceId", "Source")
+                        .IsUnique();
 
                     b.ToTable("CollectorItems");
                 });

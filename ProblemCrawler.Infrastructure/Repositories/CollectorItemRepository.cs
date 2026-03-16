@@ -1,10 +1,17 @@
-﻿using ProblemCrawler.Core.Interfaces;
+﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
+using NpgsqlTypes;
+using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
+using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Infrastructure.Data;
+using ProblemCrawler.Infrastructure.Entities;
 using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
 using System.Text;
+using System.Text.Json;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace ProblemCrawler.Infrastructure.Repositories
 {
@@ -13,9 +20,12 @@ namespace ProblemCrawler.Infrastructure.Repositories
     /// </summary>
     /// <param name="context">The database context used to access and modify collector items. Cannot be null.</param>
     public class CollectorItemRepository(
-        ProblemCrawlerDbContext context) : ICollectorItemRepository
+        ProblemCrawlerDbContext context,
+        IMapper mapper 
+        ) : ICollectorItemRepository
     {
         private readonly ProblemCrawlerDbContext _context = context ?? throw new ArgumentNullException(nameof(context));
+        private readonly IMapper _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         /// <summary>
         /// Asynchronously inserts a batch of collector items into the database.
         /// </summary>
@@ -27,9 +37,158 @@ namespace ProblemCrawler.Infrastructure.Repositories
         /// <returns>A task that represents the asynchronous insert operation.</returns>
         public async Task InsertBatchAsync(List<CollectorItem> items, CancellationToken cancellationToken)
         {
-            await _context.CollectorItems.AddRangeAsync(items, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            List<CollectorItemEntity> collectorItemEntities = _mapper.Map<List<CollectorItemEntity>>(items);
+            collectorItemEntities = RetrieveMetadata(collectorItemEntities);
+            await UpsertBatchAsync(collectorItemEntities, cancellationToken);
         }
+        /// <summary>
+        /// Inserts or updates a batch of collector item entities in the database asynchronously, ensuring that existing
+        /// records are updated if a conflict occurs on SourceId and Source.
+        /// </summary>
+        /// <remarks>If a conflict occurs on the combination of SourceId and Source, the existing record
+        /// is updated with the new values for SelfText, Content, ParentId, LinkId, Metadata, Author, SourceUrl, and
+        /// AnalysisStage. The operation is performed within a database transaction to ensure atomicity.</remarks>
+        /// <param name="items">The list of collector item entities to insert or update. Each entity represents a record to be upserted in
+        /// the database. Cannot be null.</param>
+        /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
+        /// <returns>A task that represents the asynchronous upsert operation.</returns>
+        public async Task UpsertBatchAsync(
+            List<CollectorItemEntity> items,
+            CancellationToken cancellationToken)
+        {
+            
+            await using var transaction = 
+                await _context.Database.BeginTransactionAsync(cancellationToken);
+            try
+            {
+                var sqlBuilder = new StringBuilder();
+                var parameters = new List<Npgsql.NpgsqlParameter>();
 
+                sqlBuilder.Append("""
+                    INSERT INTO "CollectorItems"
+                    (
+                        "Id","SourceId","Source","ItemType",
+                        "SelfText","Content","ParentId","LinkId",
+                        "Metadata","CreatedAt","Author","SourceUrl","AnalysisStage"
+                    )
+                    VALUES
+                    """);
+
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var item = items[i];
+
+                    if (i > 0) sqlBuilder.Append(", ");
+                    sqlBuilder.Append('(');
+                    sqlBuilder.Append($"@p{i}_id,@p{i}_sourceId,@p{i}_source,@p{i}_itemType,");
+                    sqlBuilder.Append($"@p{i}_selfText,@p{i}_content,@p{i}_parentId,@p{i}_linkId,");
+                    sqlBuilder.Append($"@p{i}_metadata,@p{i}_createdAt,@p{i}_author,@p{i}_sourceUrl,@p{i}_analysisStage");
+                    sqlBuilder.Append(')');
+
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_id", item.Id));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_sourceId", item.SourceId));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_source", item.Source));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_itemType", item.ItemType));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_selfText", item.SelfText ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_content", item.Content ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_parentId", item.ParentId ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_linkId", item.LinkId ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter
+                    {
+                        ParameterName = $"p{i}_metadata",
+                        Value = JsonSerializer.Serialize(item.Metadata),
+                        NpgsqlDbType = NpgsqlDbType.Jsonb
+                    });
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_createdAt", item.CreatedAt));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_author", item.Author ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_sourceUrl", item.SourceUrl ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_analysisStage", item.AnalysisStage ?? (object)DBNull.Value));
+                }
+               
+                sqlBuilder.Append("""
+                    ON CONFLICT ("SourceId","Source")
+                    DO UPDATE SET
+                        "SelfText" = EXCLUDED."SelfText",
+                        "Content" = EXCLUDED."Content",
+                        "ParentId" = EXCLUDED."ParentId",
+                        "LinkId" = EXCLUDED."LinkId",
+                        "Metadata" = EXCLUDED."Metadata",
+                        "Author" = EXCLUDED."Author",
+                        "SourceUrl" = EXCLUDED."SourceUrl",
+                        "AnalysisStage" = 'None'
+                    WHERE
+                    (
+                        "CollectorItems"."SelfText",
+                        "CollectorItems"."Content",
+                        "CollectorItems"."ParentId",
+                        "CollectorItems"."LinkId",
+                        "CollectorItems"."Author",
+                        "CollectorItems"."SourceUrl"
+                    )
+                    IS DISTINCT FROM
+                    (
+                        EXCLUDED."SelfText",
+                        EXCLUDED."Content",
+                        EXCLUDED."ParentId",
+                        EXCLUDED."LinkId",
+                        EXCLUDED."Author",
+                        EXCLUDED."SourceUrl"
+                    );
+                 """);
+
+                await _context.Database.ExecuteSqlRawAsync(sqlBuilder.ToString(), parameters.ToArray(),cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            } catch
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                 
+                throw;
+            } 
+        }
+        /// <summary>
+        /// Populates metadata fields for each item in the provided collection based on their type and associated
+        /// metadata.
+        /// </summary>
+        /// <remarks>For items of type "Post", the method sets the SelfText property from the associated
+        /// RedditPost metadata if available. For items of type "Comment", it extracts and sets the ParentId and LinkId
+        /// properties from the metadata, removing any prefix before the underscore character. The method does not
+        /// create new instances; it updates the existing entities in place.</remarks>
+        /// <param name="collectorItemEntities">A list of collector item entities whose metadata fields will be updated. Cannot be null.</param>
+        /// <returns>A list of collector item entities with updated metadata fields. The same list instance as provided in the
+        /// input.</returns>
+        public static List<CollectorItemEntity> RetrieveMetadata(List<CollectorItemEntity> collectorItemEntities)
+        {
+            foreach (var item in collectorItemEntities)
+            {
+                Dictionary<string, object?> metadata = item.Metadata;
+
+                if (metadata is null) {
+                    continue;
+                }
+
+                if( item.ItemType == "Post" && metadata.TryGetValue("RawPost", out object? value) && value is RedditPost rawPost)
+                {
+                    
+                        item.SelfText = rawPost.Selftext;
+                    
+
+                }
+                else if (item.ItemType == "Comment")
+                {
+                    if (metadata.TryGetValue("ParentId", out object? parent) && parent is string parentId)
+                    {
+                        int index = parentId.IndexOf('_');
+                        item.ParentId = index >= 0 ? parentId[(index + 1)..] : parentId;
+                    }
+
+                    if (metadata.TryGetValue("LinkId", out object? link) && link is string linkId)
+                    {
+                        int index = linkId.IndexOf('_');
+                        item.LinkId = index >= 0 ? linkId[(index + 1)..] : linkId;
+                    }
+                }
+            }
+            return collectorItemEntities;
+        }
     }
 }

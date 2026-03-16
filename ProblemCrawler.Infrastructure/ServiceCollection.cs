@@ -1,9 +1,11 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Infrastructure.Data;
+using ProblemCrawler.Infrastructure.Profiles;
 using ProblemCrawler.Infrastructure.Repositories;
 using System;
 using System.Collections.Generic;
@@ -20,8 +22,10 @@ namespace ProblemCrawler.Infrastructure
             this IServiceCollection services,
             IConfiguration configuration)
         {
+
             var connectionString = configuration["ConnectionString"];
             var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+
             dataSourceBuilder.EnableDynamicJson();
             var dataSource = dataSourceBuilder.Build();
 
@@ -29,6 +33,10 @@ namespace ProblemCrawler.Infrastructure
                 options.UseNpgsql(dataSource)
             );
 
+            services.AddAutoMapper( cfg =>
+            {
+                cfg.AddProfile<ContentItemEntityMappingProfile>();
+            });
             services.AddScoped<ICollectorItemRepository,CollectorItemRepository>();
             return services;
         }

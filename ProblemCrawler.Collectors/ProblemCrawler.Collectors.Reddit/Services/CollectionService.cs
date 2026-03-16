@@ -39,7 +39,7 @@ namespace ProblemCrawler.Collectors.Reddit.Services
         public async Task<(int total, List<CollectedItemResponse> items)> CollectAsync(
             CancellationToken cancellationToken)
         {
-            const int batchSize = 200;
+            const int batchSize = 1000;
             var buffer = new List<CollectorItem>();
             var responses = new List<CollectedItemResponse>();
 
@@ -48,12 +48,12 @@ namespace ProblemCrawler.Collectors.Reddit.Services
                 _logger.LogInformation(
                     "Collected {ItemType} {ItemId} from {Source} by {Author}",
                     item.ItemType,
-                    item.Id,
+                    item.SourceId,
                     item.Source,
                     item.Author);
                 buffer.Add((CollectorItem)item);
                 responses.Add(new CollectedItemResponse(
-                    item.Id,
+                    item.SourceId,
                     item.ItemType,
                     item.Author,
                     item.CreatedAt,

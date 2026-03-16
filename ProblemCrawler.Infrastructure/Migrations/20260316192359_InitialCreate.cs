@@ -16,10 +16,15 @@ namespace ProblemCrawler.Infrastructure.Migrations
                 name: "CollectorItems",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: "text", nullable: false),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    SourceId = table.Column<string>(type: "text", nullable: false),
                     ItemType = table.Column<string>(type: "text", nullable: false),
                     Source = table.Column<string>(type: "text", nullable: false),
+                    SelfText = table.Column<string>(type: "text", nullable: true),
                     Content = table.Column<string>(type: "text", nullable: true),
+                    ParentId = table.Column<string>(type: "text", nullable: true),
+                    LinkId = table.Column<string>(type: "text", nullable: true),
+                    AnalysisStage = table.Column<string>(type: "text", nullable: true),
                     Metadata = table.Column<Dictionary<string, object>>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Author = table.Column<string>(type: "text", nullable: true),
@@ -29,6 +34,12 @@ namespace ProblemCrawler.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_CollectorItems", x => x.Id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CollectorItems_SourceId_Source",
+                table: "CollectorItems",
+                columns: new[] { "SourceId", "Source" },
+                unique: true);
         }
 
         /// <inheritdoc />

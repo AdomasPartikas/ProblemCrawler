@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using ProblemCrawler.Core.Models;
+
+using ProblemCrawler.Infrastructure.Entities;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -14,15 +15,14 @@ namespace ProblemCrawler.Infrastructure.Data
     /// This context is configured to automatically apply all entity type configurations from the infrastructure assembly.
     /// It serves as the main entry point for database operations and manages the lifecycle of entities within the ProblemCrawler system.
     /// </remarks>
-    public class ProblemCrawlerDbContext : DbContext
+    public class ProblemCrawlerDbContext(DbContextOptions options) : DbContext(options)
     {
-        public ProblemCrawlerDbContext(DbContextOptions options) : base(options)
-        {
-        }
-
-        public DbSet<CollectorItem> CollectorItems => Set<CollectorItem>();
+        public DbSet<CollectorItemEntity> CollectorItems => Set<CollectorItemEntity>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<CollectorItemEntity>()
+                .HasIndex(e => new { e.SourceId, e.Source })
+                .IsUnique();
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(ProblemCrawlerDbContext).Assembly);
         }
 
