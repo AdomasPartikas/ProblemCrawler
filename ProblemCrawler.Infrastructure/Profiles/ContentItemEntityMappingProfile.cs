@@ -19,8 +19,6 @@ namespace ProblemCrawler.Infrastructure.Profiles
         public ContentItemEntityMappingProfile()
         {
             CreateMap<CollectorItem, CollectorItemEntity>();
-                
-
         }
     }
 }

@@ -21,7 +21,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
     /// <param name="context">The database context used to access and modify collector items. Cannot be null.</param>
     public class CollectorItemRepository(
         ProblemCrawlerDbContext context,
-        IMapper mapper 
+        IMapper mapper
         ) : ICollectorItemRepository
     {
         private readonly ProblemCrawlerDbContext _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -56,8 +56,8 @@ namespace ProblemCrawler.Infrastructure.Repositories
             List<CollectorItemEntity> items,
             CancellationToken cancellationToken)
         {
-            
-            await using var transaction = 
+
+            await using var transaction =
                 await _context.Database.BeginTransactionAsync(cancellationToken);
             try
             {
@@ -102,9 +102,9 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_createdAt", item.CreatedAt));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_author", item.Author ?? (object)DBNull.Value));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_sourceUrl", item.SourceUrl ?? (object)DBNull.Value));
-                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_analysisStage", item.AnalysisStage ?? (object)DBNull.Value));
+                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_analysisStage", item.AnalysisStage.ToString()));
                 }
-               
+
                 sqlBuilder.Append("""
                     ON CONFLICT ("SourceId","Source")
                     DO UPDATE SET
@@ -136,14 +136,15 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     );
                  """);
 
-                await _context.Database.ExecuteSqlRawAsync(sqlBuilder.ToString(), parameters.ToArray(),cancellationToken);
+                await _context.Database.ExecuteSqlRawAsync(sqlBuilder.ToString(), parameters.ToArray(), cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
-            } catch
+            }
+            catch
             {
                 await transaction.RollbackAsync(cancellationToken);
-                 
+
                 throw;
-            } 
+            }
         }
         /// <summary>
         /// Populates metadata fields for each item in the provided collection based on their type and associated
@@ -162,29 +163,28 @@ namespace ProblemCrawler.Infrastructure.Repositories
             {
                 Dictionary<string, object?> metadata = item.Metadata;
 
-                if (metadata is null) {
+                if (metadata is null)
+                {
                     continue;
                 }
 
-                if( item.ItemType == "Post" && metadata.TryGetValue("RawPost", out object? value) && value is RedditPost rawPost)
+                if (item.ItemType == "Post" && metadata.TryGetValue("RawPost", out object? value) && value is RedditPost rawPost)
                 {
-                    
-                        item.SelfText = rawPost.Selftext;
-                    
+
+                    item.SelfText = rawPost.Selftext;
+
 
                 }
                 else if (item.ItemType == "Comment")
                 {
                     if (metadata.TryGetValue("ParentId", out object? parent) && parent is string parentId)
                     {
-                        int index = parentId.IndexOf('_');
-                        item.ParentId = index >= 0 ? parentId[(index + 1)..] : parentId;
+                        item.ParentId = parentId;
                     }
 
                     if (metadata.TryGetValue("LinkId", out object? link) && link is string linkId)
                     {
-                        int index = linkId.IndexOf('_');
-                        item.LinkId = index >= 0 ? linkId[(index + 1)..] : linkId;
+                        item.LinkId = linkId;
                     }
                 }
             }

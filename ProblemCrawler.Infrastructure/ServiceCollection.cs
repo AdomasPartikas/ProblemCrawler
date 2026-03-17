@@ -33,11 +33,11 @@ namespace ProblemCrawler.Infrastructure
                 options.UseNpgsql(dataSource)
             );
 
-            services.AddAutoMapper( cfg =>
+            services.AddAutoMapper(cfg =>
             {
                 cfg.AddProfile<ContentItemEntityMappingProfile>();
             });
-            services.AddScoped<ICollectorItemRepository,CollectorItemRepository>();
+            services.AddScoped<ICollectorItemRepository, CollectorItemRepository>();
             return services;
         }
     }

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Logging;
+using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Records.Reddit;
@@ -39,18 +40,13 @@ namespace ProblemCrawler.Collectors.Reddit.Services
         public async Task<(int total, List<CollectedItemResponse> items)> CollectAsync(
             CancellationToken cancellationToken)
         {
-            const int batchSize = 1000;
+
             var buffer = new List<CollectorItem>();
             var responses = new List<CollectedItemResponse>();
 
             await foreach (var item in _collector.GatherAsync(cancellationToken))
             {
-                _logger.LogInformation(
-                    "Collected {ItemType} {ItemId} from {Source} by {Author}",
-                    item.ItemType,
-                    item.SourceId,
-                    item.Source,
-                    item.Author);
+
                 buffer.Add((CollectorItem)item);
                 responses.Add(new CollectedItemResponse(
                     item.SourceId,
@@ -58,22 +54,22 @@ namespace ProblemCrawler.Collectors.Reddit.Services
                     item.Author,
                     item.CreatedAt,
                     item.SourceUrl));
-                    
-                if(buffer.Count >= batchSize)
+
+                if (buffer.Count >= DbConstants.batchSize)
                 {
                     await _repository.InsertBatchAsync(buffer, cancellationToken);
                     buffer.Clear();
                 }
             }
-            if(buffer.Count > 0)
+            if (buffer.Count > 0)
             {
                 await _repository.InsertBatchAsync(buffer, cancellationToken);
                 buffer.Clear();
             }
 
-            return(responses.Count,responses);
+            return (responses.Count, responses);
 
         }
     }
-    
+
 }
