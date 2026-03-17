@@ -11,6 +11,9 @@ namespace ProblemCrawler.Infrastructure.Entities
         public required string SourceId { get; set; }
         public required string ItemType { get; set; }
         public required string Source { get; set; }
+        /// <summary>
+        /// Sometimes Content contains a link and no contentm, this is for those cases for now.
+        /// </summary>
         public string? SelfText { get; set; }
         public string? Content { get; set; }
         public string? ParentId { get; set; }

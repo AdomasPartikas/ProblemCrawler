@@ -6,6 +6,7 @@ using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Entities;
+using ProblemCrawler.Infrastructure.RawSQL;
 using System;
 using System.Collections.Generic;
 using System.Reflection.Metadata;
@@ -64,15 +65,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 var sqlBuilder = new StringBuilder();
                 var parameters = new List<Npgsql.NpgsqlParameter>();
 
-                sqlBuilder.Append("""
-                    INSERT INTO "CollectorItems"
-                    (
-                        "Id","SourceId","Source","ItemType",
-                        "SelfText","Content","ParentId","LinkId",
-                        "Metadata","CreatedAt","Author","SourceUrl","AnalysisStage"
-                    )
-                    VALUES
-                    """);
+                sqlBuilder.Append(ContentItemSql.insertionSql);
 
                 for (int i = 0; i < items.Count; i++)
                 {
@@ -105,36 +98,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_analysisStage", item.AnalysisStage.ToString()));
                 }
 
-                sqlBuilder.Append("""
-                    ON CONFLICT ("SourceId","Source")
-                    DO UPDATE SET
-                        "SelfText" = EXCLUDED."SelfText",
-                        "Content" = EXCLUDED."Content",
-                        "ParentId" = EXCLUDED."ParentId",
-                        "LinkId" = EXCLUDED."LinkId",
-                        "Metadata" = EXCLUDED."Metadata",
-                        "Author" = EXCLUDED."Author",
-                        "SourceUrl" = EXCLUDED."SourceUrl",
-                        "AnalysisStage" = 'None'
-                    WHERE
-                    (
-                        "CollectorItems"."SelfText",
-                        "CollectorItems"."Content",
-                        "CollectorItems"."ParentId",
-                        "CollectorItems"."LinkId",
-                        "CollectorItems"."Author",
-                        "CollectorItems"."SourceUrl"
-                    )
-                    IS DISTINCT FROM
-                    (
-                        EXCLUDED."SelfText",
-                        EXCLUDED."Content",
-                        EXCLUDED."ParentId",
-                        EXCLUDED."LinkId",
-                        EXCLUDED."Author",
-                        EXCLUDED."SourceUrl"
-                    );
-                 """);
+                sqlBuilder.Append(ContentItemSql.conflictUpdateSql);
 
                 await _context.Database.ExecuteSqlRawAsync(sqlBuilder.ToString(), parameters.ToArray(), cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
