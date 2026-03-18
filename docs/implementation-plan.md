@@ -25,7 +25,7 @@ Build a modular, source-agnostic pipeline where Reddit is the first collector im
 4.4 Persist analyzed records, score history, and cluster assignments. *depends on 4.2 and 4.3*
 
 5. Phase 5 - Orchestration, Scheduling, and API Surface
-5.1 Implement scheduled batch runner (hourly default) using hosted background service; add safe re-entry and batch checkpointing. *depends on Phases 2-4*
+5.1 Implement scheduled batch runner (hourly default) using a recurring job scheduler; add safe re-entry and batch checkpointing. *depends on Phases 2-4*
 5.2 Add API endpoints for top opportunities, clusters, and example source posts with filters by date/subreddit/industry. *depends on 4.4*
 5.3 Add operational endpoints for pipeline run status and recent errors. *depends on 5.1*
 
