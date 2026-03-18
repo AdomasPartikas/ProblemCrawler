@@ -7,7 +7,8 @@ namespace ProblemCrawler.Core.Models;
 /// </summary>
 public class CollectorItem : ICollectorItem
 {
-    public required string Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string SourceId { get; set; }
     public required string ItemType { get; set; }
     public required string Source { get; set; }
     public string? Content { get; set; }

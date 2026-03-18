@@ -22,7 +22,10 @@ public static class RedditCollectorServiceCollectionExtensions
     {
         services.Configure<RedditCollectorConfiguration>(configurationSection);
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<RedditCollectorConfiguration>>().Value);
-        services.AddAutoMapper(typeof(RedditCollectorMappingProfile).Assembly);
+        services.AddAutoMapper(cfg =>
+        {
+            cfg.AddProfile<RedditCollectorMappingProfile>();
+        });
 
         services.AddHttpClient<RedditHttpClient>((sp, client) =>
         {
@@ -32,7 +35,7 @@ public static class RedditCollectorServiceCollectionExtensions
         });
 
         services.AddScoped<ICollector, RedditCollector>();
-
+        services.AddScoped<ICollectionService, CollectionService>();
         return services;
     }
 }

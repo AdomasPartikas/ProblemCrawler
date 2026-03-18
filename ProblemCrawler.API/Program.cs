@@ -1,6 +1,7 @@
 using Hangfire;
 using ProblemCrawler.API.Extensions;
 using ProblemCrawler.Collectors.Reddit.Extensions;
+using ProblemCrawler.Infrastructure;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +12,7 @@ builder.Services.AddLogging();
 builder.Services.AddCollectorScheduling(builder.Configuration);
 
 builder.Services.AddRedditCollector(builder.Configuration.GetSection("Collectors:Reddit"));
-
+builder.Services.AddInfrastructure(builder.Configuration.GetSection("DatabaseSettings"));
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

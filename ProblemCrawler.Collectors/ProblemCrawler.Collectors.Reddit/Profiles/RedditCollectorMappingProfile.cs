@@ -10,6 +10,8 @@ public class RedditCollectorMappingProfile : Profile
     public RedditCollectorMappingProfile()
     {
         CreateMap<RedditPost, CollectorItem>()
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.SourceId, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.ItemType, opt => opt.MapFrom(_ => "Post"))
             .ForMember(dest => dest.Source, opt => opt.MapFrom(_ => "Reddit"))
             .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.IsSelf ? src.Selftext ?? string.Empty : src.Url ?? string.Empty))
@@ -19,6 +21,8 @@ public class RedditCollectorMappingProfile : Profile
             .AfterMap((src, dest) => dest.Metadata = BuildPostMetadata(src));
 
         CreateMap<RedditComment, CollectorItem>()
+            .ForMember(dest => dest.Id, opt => opt.Ignore())
+            .ForMember(dest => dest.SourceId, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.ItemType, opt => opt.MapFrom(_ => "Comment"))
             .ForMember(dest => dest.Source, opt => opt.MapFrom(_ => "Reddit"))
             .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.Body))

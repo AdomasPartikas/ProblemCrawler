@@ -9,7 +9,7 @@ public interface ICollectorItem
     /// <summary>
     /// Unique identifier for this item within the source
     /// </summary>
-    string Id { get; }
+    string SourceId { get; }
 
     /// <summary>
     /// The type of item (e.g., "Post", "Comment")
