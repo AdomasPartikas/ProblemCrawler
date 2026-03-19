@@ -1,7 +1,6 @@
-﻿namespace ProblemCrawler.Core.Constants
+﻿namespace ProblemCrawler.Core.Constants;
+
+public static class DbConstants
 {
-    public static class DbConstants
-    {
-        public const int batchSize = 1000;
-    }
+    public const int batchSize = 1000;
 }

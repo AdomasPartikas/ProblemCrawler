@@ -1,9 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-
 using ProblemCrawler.Infrastructure.Entities;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ProblemCrawler.Infrastructure.Data
 {

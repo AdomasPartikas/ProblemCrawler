@@ -1,5 +1,4 @@
-﻿using AutoMapper;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -7,9 +6,6 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Profiles;
 using ProblemCrawler.Infrastructure.Repositories;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ProblemCrawler.Infrastructure
 {

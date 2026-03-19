@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ProblemCrawler.Infrastructure.RawSQL
+﻿namespace ProblemCrawler.Infrastructure.RawSQL
 {
     public static class ContentItemSql
     {
