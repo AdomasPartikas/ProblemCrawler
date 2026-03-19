@@ -13,7 +13,7 @@ public sealed class FilteringSchedulingConfiguration
     /// <summary>
     /// Cron expression used for the recurring filtering job.
     /// </summary>
-    public string CronExpression { get; set; } = "5 * * * *";
+    public string CronExpression { get; set; } = "*/30 * * * *";
 
     /// <summary>
     /// Time zone identifier used when evaluating the cron expression.

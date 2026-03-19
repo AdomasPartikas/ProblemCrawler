@@ -48,13 +48,13 @@ namespace ProblemCrawler.Infrastructure.Repositories
             return await _context.CollectorItems
                 .AsNoTracking()
                 .Where(item =>
-                    item.AnalysisStage == AnalysisStages.New ||
-                    item.AnalysisStage == AnalysisStages.ReadyForAnalysis)
+                    item.AnalysisStage == AnalysisStages.New)
                 .OrderBy(item => item.CreatedAt)
                 .Take(batchSize)
                 .Select(item => new CollectorItemFilterCandidate(
                     item.Id,
                     item.Content,
+                    item.ItemType,
                     item.AnalysisStage))
                 .ToListAsync(cancellationToken);
         }
