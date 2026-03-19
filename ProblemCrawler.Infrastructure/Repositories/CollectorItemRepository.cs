@@ -55,6 +55,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 .Select(item => new CollectorItemFilterCandidate(
                     item.Id,
                     item.Content,
+                    item.ItemType,
                     item.AnalysisStage))
                 .ToListAsync(cancellationToken);
         }

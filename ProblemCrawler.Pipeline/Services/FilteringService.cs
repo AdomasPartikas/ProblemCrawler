@@ -19,9 +19,9 @@ public sealed class FilteringService(
     private readonly FilteringConfiguration _filteringOptions = filteringOptions.Value;
     private readonly ILogger<FilteringService> _logger = logger;
 
-    private static readonly HashSet<string> DeletedMarkers = FilteringWordLists.DeletedMarkers;
+    private const string PostItemType = "Post";
 
-    private static readonly HashSet<string> RemovedTerms = FilteringWordLists.RemovedWordList;
+    private static readonly HashSet<string> DeletedMarkers = FilteringWordLists.DeletedMarkers;
 
     public async Task<FilteringRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
@@ -133,12 +133,11 @@ public sealed class FilteringService(
             return AnalysisStages.Deleted;
         }
 
-        if (IsExplicitlyRemoved(normalized))
-        {
-            return AnalysisStages.Removed;
-        }
+        var wordCountThreshold = candidate.ItemType == PostItemType
+            ? _filteringOptions.MinimumWordCount
+            : _filteringOptions.MinimumWordCount * 2;
 
-        if (HasTooFewWords(normalized) || HasTooFewMeaningfulCharacters(normalized) || !ContainsAlphaNumeric(normalized))
+        if (HasTooFewWords(normalized, wordCountThreshold) || HasTooFewMeaningfulCharacters(normalized) || !ContainsAlphaNumeric(normalized))
         {
             return AnalysisStages.Removed;
         }
@@ -151,16 +150,11 @@ public sealed class FilteringService(
         return DeletedMarkers.Contains(normalizedContent);
     }
 
-    private static bool IsExplicitlyRemoved(string normalizedContent)
+    private static bool HasTooFewWords(string normalizedContent, int minimumWordCount)
     {
-        return RemovedTerms.Contains(normalizedContent);
-    }
-
-    private bool HasTooFewWords(string normalizedContent)
-    {
-        var minimumWordCount = Math.Max(1, _filteringOptions.MinimumWordCount);
+        var effectiveMinimum = Math.Max(1, minimumWordCount);
         var words = normalizedContent.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return words.Length < minimumWordCount;
+        return words.Length < effectiveMinimum;
     }
 
     private bool HasTooFewMeaningfulCharacters(string normalizedContent)
