@@ -28,4 +28,7 @@ app.UseCollectorScheduling();
 
 app.MapControllers();
 
+app.MapGet("/", () => Results.Redirect("/scalar"))
+   .ExcludeFromDescription();
+
 app.Run();
