@@ -19,6 +19,10 @@ public sealed class FilteringService(
     private readonly FilteringConfiguration _filteringOptions = filteringOptions.Value;
     private readonly ILogger<FilteringService> _logger = logger;
 
+    private static readonly HashSet<string> DeletedMarkers = FilteringWordLists.DeletedMarkers;
+
+    private static readonly HashSet<string> RemovedTerms = FilteringWordLists.RemovedWordList;
+
     public async Task<FilteringRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
         var evaluated = 0;
@@ -115,7 +119,8 @@ public sealed class FilteringService(
         return normalizedWhitespace.Trim();
     }
 
-    private AnalysisStages DetermineStage(CollectorItemFilterCandidate candidate)
+    private AnalysisStages DetermineStage(
+        CollectorItemFilterCandidate candidate)
     {
         var normalized = NormalizeContent(candidate.Content, candidate.SelfText);
 
@@ -142,16 +147,14 @@ public sealed class FilteringService(
         return AnalysisStages.ReadyForAnalysis;
     }
 
-    private bool IsDeletedMarker(string normalizedContent)
+    private static bool IsDeletedMarker(string normalizedContent)
     {
-        return (_filteringOptions.DeletedMarkers ?? [])
-            .Any(marker => string.Equals(marker, normalizedContent, StringComparison.OrdinalIgnoreCase));
+        return DeletedMarkers.Contains(normalizedContent);
     }
 
-    private bool IsExplicitlyRemoved(string normalizedContent)
+    private static bool IsExplicitlyRemoved(string normalizedContent)
     {
-        return (_filteringOptions.RemovedWordList ?? [])
-            .Any(term => string.Equals(term, normalizedContent, StringComparison.OrdinalIgnoreCase));
+        return RemovedTerms.Contains(normalizedContent);
     }
 
     private bool HasTooFewWords(string normalizedContent)

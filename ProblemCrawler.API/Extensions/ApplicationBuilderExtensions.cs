@@ -15,7 +15,7 @@ public static class ApplicationBuilderExtensions
             .Value;
 
         var filteringOptions = app.Services
-            .GetRequiredService<IOptions<FilteringConfiguration>>()
+            .GetRequiredService<IOptions<FilteringSchedulingConfiguration>>()
             .Value;
 
         if (collectorOptions.Enabled)

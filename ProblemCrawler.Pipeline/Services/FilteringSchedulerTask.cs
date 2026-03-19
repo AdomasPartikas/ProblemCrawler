@@ -12,11 +12,11 @@ namespace ProblemCrawler.Pipeline.Services;
 /// </summary>
 public sealed class FilteringSchedulerTask(
     IServiceScopeFactory scopeFactory,
-    IOptions<FilteringConfiguration> filteringOptions,
+    IOptions<FilteringSchedulingConfiguration> filteringOptions,
     ILogger<FilteringSchedulerTask> logger) : IFilteringSchedulerTask
 {
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
-    private readonly FilteringConfiguration _filteringOptions = filteringOptions.Value;
+    private readonly FilteringSchedulingConfiguration _filteringOptions = filteringOptions.Value;
     private readonly ILogger<FilteringSchedulerTask> _logger = logger;
     private readonly SemaphoreSlim _runLock = new(1, 1);
 
