@@ -3,8 +3,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
-using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Collectors.Reddit.Profiles;
+using ProblemCrawler.Collectors.Reddit.Services;
 
 namespace ProblemCrawler.Collectors.Reddit.Extensions;
 
@@ -35,7 +35,6 @@ public static class RedditCollectorServiceCollectionExtensions
         });
 
         services.AddScoped<ICollector, RedditCollector>();
-        services.AddScoped<ICollectionService, CollectionService>();
         return services;
     }
 }

@@ -1,0 +1,20 @@
+using Microsoft.Extensions.DependencyInjection;
+using ProblemCrawler.Core.Interfaces;
+using ProblemCrawler.Pipeline.Services;
+
+namespace ProblemCrawler.Pipeline.Extensions;
+
+/// <summary>
+/// Extension methods for registering pipeline services in the dependency injection container.
+/// </summary>
+public static class ServiceCollectionExtensions
+{
+    /// <summary>
+    /// Registers the collection pipeline services, including <see cref="ICollectionService"/>.
+    /// </summary>
+    public static IServiceCollection AddCollectionPipeline(this IServiceCollection services)
+    {
+        services.AddScoped<ICollectionService, CollectionService>();
+        return services;
+    }
+}
