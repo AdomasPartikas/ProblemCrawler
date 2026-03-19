@@ -107,7 +107,7 @@ public sealed class FilteringService(
 
     private static string NormalizeContent(string? content, string? selfText)
     {
-        var selected = !string.IsNullOrWhiteSpace(content) ? content : selfText;
+        var selected = !string.IsNullOrWhiteSpace(selfText) ? selfText : content;
         if (string.IsNullOrWhiteSpace(selected))
         {
             return string.Empty;
