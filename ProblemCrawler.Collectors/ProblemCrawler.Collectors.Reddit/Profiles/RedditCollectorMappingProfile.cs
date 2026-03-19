@@ -14,7 +14,7 @@ public class RedditCollectorMappingProfile : Profile
             .ForMember(dest => dest.SourceId, opt => opt.MapFrom(src => src.Name))
             .ForMember(dest => dest.ItemType, opt => opt.MapFrom(_ => "Post"))
             .ForMember(dest => dest.Source, opt => opt.MapFrom(_ => "Reddit"))
-            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.IsSelf ? src.Selftext ?? string.Empty : src.Url ?? string.Empty))
+            .ForMember(dest => dest.Content, opt => opt.MapFrom(src => src.Selftext))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => DateTimeOffset.FromUnixTimeSeconds((long)src.CreatedUtc).UtcDateTime))
             .ForMember(dest => dest.SourceUrl, opt => opt.MapFrom(src => src.Permalink != null ? $"{RedditCollectorDefaults.BaseUrl}{src.Permalink}" : null))
             .ForMember(dest => dest.Metadata, opt => opt.Ignore())
