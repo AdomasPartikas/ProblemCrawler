@@ -6,7 +6,7 @@
                     INSERT INTO "CollectorItems"
                     (
                         "Id","SourceId","Source","ItemType",
-                        "SelfText","Content","ParentId","LinkId",
+                        "Content","ParentId","LinkId",
                         "Metadata","CreatedAt","Author","SourceUrl","AnalysisStage"
                     )
                     VALUES
@@ -14,7 +14,6 @@
         public const string conflictUpdateSql = ("""
                     ON CONFLICT ("SourceId","Source")
                     DO UPDATE SET
-                        "SelfText" = EXCLUDED."SelfText",
                         "Content" = EXCLUDED."Content",
                         "ParentId" = EXCLUDED."ParentId",
                         "LinkId" = EXCLUDED."LinkId",
@@ -24,7 +23,6 @@
                         "AnalysisStage" = 'New'
                     WHERE
                     (
-                        "CollectorItems"."SelfText",
                         "CollectorItems"."Content",
                         "CollectorItems"."ParentId",
                         "CollectorItems"."LinkId",
@@ -33,7 +31,6 @@
                     )
                     IS DISTINCT FROM
                     (
-                        EXCLUDED."SelfText",
                         EXCLUDED."Content",
                         EXCLUDED."ParentId",
                         EXCLUDED."LinkId",

@@ -105,15 +105,14 @@ public sealed class FilteringService(
         return false;
     }
 
-    private static string NormalizeContent(string? content, string? selfText)
+    private static string NormalizeContent(string? content)
     {
-        var selected = !string.IsNullOrWhiteSpace(selfText) ? selfText : content;
-        if (string.IsNullOrWhiteSpace(selected))
+        if (string.IsNullOrWhiteSpace(content))
         {
             return string.Empty;
         }
 
-        var normalizedWhitespace = string.Join(" ", selected
+        var normalizedWhitespace = string.Join(" ", content
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
         return normalizedWhitespace.Trim();
@@ -122,7 +121,7 @@ public sealed class FilteringService(
     private AnalysisStages DetermineStage(
         CollectorItemFilterCandidate candidate)
     {
-        var normalized = NormalizeContent(candidate.Content, candidate.SelfText);
+        var normalized = NormalizeContent(candidate.Content);
 
         if (string.IsNullOrWhiteSpace(normalized))
         {

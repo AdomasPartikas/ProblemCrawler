@@ -55,7 +55,6 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 .Select(item => new CollectorItemFilterCandidate(
                     item.Id,
                     item.Content,
-                    item.SelfText,
                     item.AnalysisStage))
                 .ToListAsync(cancellationToken);
         }
@@ -91,7 +90,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
         /// records are updated if a conflict occurs on SourceId and Source.
         /// </summary>
         /// <remarks>If a conflict occurs on the combination of SourceId and Source, the existing record
-        /// is updated with the new values for SelfText, Content, ParentId, LinkId, Metadata, Author, SourceUrl, and
+        /// is updated with the new values for Content, ParentId, LinkId, Metadata, Author, SourceUrl, and
         /// AnalysisStage. The operation is performed within a database transaction to ensure atomicity.</remarks>
         /// <param name="items">The list of collector item entities to insert or update. Each entity represents a record to be upserted in
         /// the database. Cannot be null.</param>
@@ -118,7 +117,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     if (i > 0) sqlBuilder.Append(", ");
                     sqlBuilder.Append('(');
                     sqlBuilder.Append($"@p{i}_id,@p{i}_sourceId,@p{i}_source,@p{i}_itemType,");
-                    sqlBuilder.Append($"@p{i}_selfText,@p{i}_content,@p{i}_parentId,@p{i}_linkId,");
+                    sqlBuilder.Append($"@p{i}_content,@p{i}_parentId,@p{i}_linkId,");
                     sqlBuilder.Append($"@p{i}_metadata,@p{i}_createdAt,@p{i}_author,@p{i}_sourceUrl,@p{i}_analysisStage");
                     sqlBuilder.Append(')');
 
@@ -126,7 +125,6 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_sourceId", item.SourceId));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_source", item.Source));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_itemType", item.ItemType));
-                    parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_selfText", item.SelfText ?? (object)DBNull.Value));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_content", item.Content ?? (object)DBNull.Value));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_parentId", item.ParentId ?? (object)DBNull.Value));
                     parameters.Add(new Npgsql.NpgsqlParameter($"p{i}_linkId", item.LinkId ?? (object)DBNull.Value));
@@ -158,8 +156,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
         /// Populates metadata fields for each item in the provided collection based on their type and associated
         /// metadata.
         /// </summary>
-        /// <remarks>For items of type "Post", the method sets the SelfText property from the associated
-        /// RedditPost metadata if available. For items of type "Comment", it extracts and sets the ParentId and LinkId
+        /// <remarks>For items of type "Comment", it extracts and sets the ParentId and LinkId
         /// properties from the metadata, removing any prefix before the underscore character. The method does not
         /// create new instances; it updates the existing entities in place.</remarks>
         /// <param name="collectorItemEntities">A list of collector item entities whose metadata fields will be updated. Cannot be null.</param>
@@ -176,14 +173,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     continue;
                 }
 
-                if (item.ItemType == "Post" && metadata.TryGetValue("RawPost", out object? value) && value is RedditPost rawPost)
-                {
-
-                    item.SelfText = rawPost.Selftext;
-
-
-                }
-                else if (item.ItemType == "Comment")
+                if (item.ItemType == "Comment")
                 {
                     if (metadata.TryGetValue("ParentId", out object? parent) && parent is string parentId)
                     {
