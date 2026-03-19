@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -11,10 +12,12 @@ namespace ProblemCrawler.Pipeline.Services;
 /// </summary>
 public sealed class CollectorSchedulerTask(
     IServiceScopeFactory scopeFactory,
-    IOptions<CollectorSchedulingConfiguration> schedulingOptions) : ICollectorSchedulerTask
+    IOptions<CollectorSchedulingConfiguration> schedulingOptions,
+    ILogger<CollectorSchedulerTask> logger) : ICollectorSchedulerTask
 {
     private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
     private readonly CollectorSchedulingConfiguration _schedulingOptions = schedulingOptions.Value;
+    private readonly ILogger<CollectorSchedulerTask> _logger = logger;
     private readonly SemaphoreSlim _runLock = new(1, 1);
 
     public async Task ExecuteAsync()
@@ -45,12 +48,15 @@ public sealed class CollectorSchedulerTask(
     {
         using var scope = _scopeFactory.CreateScope();
 
-        var collectors = scope.ServiceProvider.GetServices<ICollector>().ToArray();
+        var collectionServices = scope.ServiceProvider.GetServices<ICollectionService>().ToArray();
 
-        if (collectors.Length == 0)
+        if (collectionServices.Length == 0)
             return;
 
-        foreach (var collector in collectors)
-            await foreach (var _ in collector.GatherAsync());
+        foreach (var service in collectionServices)
+        {
+            var (total, _) = await service.CollectAsync(CancellationToken.None);
+            _logger.LogInformation("Scheduled collection run completed. Total items: {Total}", total);
+        }
     }
 }

@@ -1,9 +1,6 @@
 ﻿using AutoMapper;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Infrastructure.Entities;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ProblemCrawler.Infrastructure.Profiles
 {

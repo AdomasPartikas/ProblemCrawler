@@ -8,7 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\ProblemCrawler.Core\ProblemCrawler.Core.csproj" />
-    <ProjectReference Include="..\..\ProblemCrawler.Infrastructure\ProblemCrawler.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

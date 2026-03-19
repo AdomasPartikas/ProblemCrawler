@@ -7,12 +7,8 @@ using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Entities;
 using ProblemCrawler.Infrastructure.RawSQL;
-using System;
-using System.Collections.Generic;
-using System.Reflection.Metadata;
 using System.Text;
 using System.Text.Json;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace ProblemCrawler.Infrastructure.Repositories
 {

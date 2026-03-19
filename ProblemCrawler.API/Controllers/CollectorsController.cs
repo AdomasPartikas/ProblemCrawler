@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-
-using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.Reddit;
 
@@ -16,9 +14,7 @@ public sealed class CollectorsController(ICollectionService collectionService) :
     [ProducesResponseType(typeof(RedditCollectionResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<RedditCollectionResponse>> TestRedditCollector(CancellationToken cancellationToken)
     {
-
         var (total, items) = await _collectionService.CollectAsync(cancellationToken);
-        
 
         return Ok(new RedditCollectionResponse(
             "Reddit collection completed.",
