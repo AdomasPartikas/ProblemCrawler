@@ -21,10 +21,6 @@ namespace ProblemCrawler.Infrastructure.Entities
         /// </summary>
         public required string Source { get; set; }
         /// <summary>
-        /// Sometimes Content contains a link and no contentm, this is for those cases for now.
-        /// </summary>
-        public string? SelfText { get; set; }
-        /// <summary>
         /// The main content of the collected item. This can be text, a URL, or any other relevant data depending on the source and item type.
         /// </summary>
         public string? Content { get; set; }

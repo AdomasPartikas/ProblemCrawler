@@ -34,6 +34,9 @@ namespace ProblemCrawler.Infrastructure.Configurations
             builder.Property(x => x.Metadata)
                 .HasColumnType("jsonb");
 
+            builder.Property(x => x.AnalysisStage)
+                .HasConversion<string>();
+
             builder.Property(x => x.CreatedAt)
                 .IsRequired();
         }

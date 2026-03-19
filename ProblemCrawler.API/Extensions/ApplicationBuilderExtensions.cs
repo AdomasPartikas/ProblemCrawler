@@ -10,27 +10,46 @@ public static class ApplicationBuilderExtensions
 {
     public static WebApplication UseCollectorScheduling(this WebApplication app)
     {
-        var schedulingOptions = app.Services
+        var collectorOptions = app.Services
             .GetRequiredService<IOptions<CollectorSchedulingConfiguration>>()
             .Value;
 
-        if (!schedulingOptions.Enabled)
+        var filteringOptions = app.Services
+            .GetRequiredService<IOptions<FilteringSchedulingConfiguration>>()
+            .Value;
+
+        if (collectorOptions.Enabled)
         {
-            return app;
+            RecurringJob.AddOrUpdate<ICollectorSchedulerTask>(
+                recurringJobId: "collectors:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: collectorOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(collectorOptions.TimeZoneId)
+                });
+
+            if (collectorOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<ICollectorSchedulerTask>(static job => job.ExecuteAsync());
+            }
         }
 
-        RecurringJob.AddOrUpdate<ICollectorSchedulerTask>(
-            recurringJobId: "collectors:run-all",
-            methodCall: static job => job.ExecuteAsync(),
-            cronExpression: schedulingOptions.CronExpression,
-            options: new RecurringJobOptions
-            {
-                TimeZone = TimeZoneResolver.Resolve(schedulingOptions.TimeZoneId)
-            });
-
-        if (schedulingOptions.RunOnStartup)
+        if (filteringOptions.Enabled)
         {
-            BackgroundJob.Enqueue<ICollectorSchedulerTask>(static job => job.ExecuteAsync());
+            RecurringJob.AddOrUpdate<IFilteringSchedulerTask>(
+                recurringJobId: "filtering:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: filteringOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(filteringOptions.TimeZoneId)
+                });
+
+            if (filteringOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<IFilteringSchedulerTask>(static job => job.ExecuteAsync());
+            }
         }
 
         return app;
