@@ -13,7 +13,11 @@ public static class ServiceCollectionExtensions
         services.Configure<CollectorSchedulingConfiguration>(
             configuration.GetSection("Collectors:Scheduling"));
 
+        services.Configure<FilteringConfiguration>(
+            configuration.GetSection("Filtering"));
+
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();
+        services.AddSingleton<IFilteringSchedulerTask, FilteringSchedulerTask>();
 
         services.AddHangfire(static config => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

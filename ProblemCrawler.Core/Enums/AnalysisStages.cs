@@ -7,6 +7,10 @@ public enum AnalysisStages
     /// </summary>
     New,
     /// <summary>
+    /// Passed content-quality filtering and is ready for downstream analysis.
+    /// </summary>
+    ReadyForAnalysis,
+    /// <summary>
     /// Filtered out
     /// </summary>
     Removed,

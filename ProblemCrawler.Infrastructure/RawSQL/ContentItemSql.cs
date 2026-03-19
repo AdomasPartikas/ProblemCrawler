@@ -21,7 +21,7 @@
                         "Metadata" = EXCLUDED."Metadata",
                         "Author" = EXCLUDED."Author",
                         "SourceUrl" = EXCLUDED."SourceUrl",
-                        "AnalysisStage" = 'None'
+                        "AnalysisStage" = 'New'
                     WHERE
                     (
                         "CollectorItems"."SelfText",

@@ -17,4 +17,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICollectionService, CollectionService>();
         return services;
     }
+
+    /// <summary>
+    /// Registers the filtering pipeline service.
+    /// </summary>
+    public static IServiceCollection AddFilteringPipeline(this IServiceCollection services)
+    {
+        services.AddScoped<IFilteringService, FilteringService>();
+        return services;
+    }
 }

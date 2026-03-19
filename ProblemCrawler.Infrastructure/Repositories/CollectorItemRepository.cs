@@ -1,9 +1,11 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using NpgsqlTypes;
+using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
+using ProblemCrawler.Core.Records.Filtering;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Entities;
 using ProblemCrawler.Infrastructure.RawSQL;
@@ -37,6 +39,52 @@ namespace ProblemCrawler.Infrastructure.Repositories
             List<CollectorItemEntity> collectorItemEntities = _mapper.Map<List<CollectorItemEntity>>(items);
             collectorItemEntities = RetrieveMetadata(collectorItemEntities);
             await UpsertBatchAsync(collectorItemEntities, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<CollectorItemFilterCandidate>> GetFilteringCandidatesAsync(
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            return await _context.CollectorItems
+                .AsNoTracking()
+                .Where(item =>
+                    item.AnalysisStage == AnalysisStages.New ||
+                    item.AnalysisStage == AnalysisStages.ReadyForAnalysis)
+                .OrderBy(item => item.CreatedAt)
+                .Take(batchSize)
+                .Select(item => new CollectorItemFilterCandidate(
+                    item.Id,
+                    item.Content,
+                    item.SelfText,
+                    item.AnalysisStage))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task UpdateAnalysisStagesAsync(
+            IReadOnlyList<CollectorItemFilterUpdate> updates,
+            CancellationToken cancellationToken)
+        {
+            if (updates.Count == 0)
+            {
+                return;
+            }
+
+            var targetStageById = updates.ToDictionary(update => update.Id, update => update.TargetStage);
+            var ids = targetStageById.Keys.ToArray();
+
+            var entities = await _context.CollectorItems
+                .Where(item => ids.Contains(item.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var entity in entities)
+            {
+                if (targetStageById.TryGetValue(entity.Id, out var targetStage))
+                {
+                    entity.AnalysisStage = targetStage;
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
         }
         /// <summary>
         /// Inserts or updates a batch of collector item entities in the database asynchronously, ensuring that existing

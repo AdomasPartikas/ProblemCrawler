@@ -15,6 +15,7 @@ builder.Services.AddCollectorScheduling(builder.Configuration);
 builder.Services.AddRedditCollector(builder.Configuration.GetSection("Collectors:Reddit"));
 builder.Services.AddInfrastructure(builder.Configuration.GetSection("DatabaseSettings"));
 builder.Services.AddCollectionPipeline();
+builder.Services.AddFilteringPipeline();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
