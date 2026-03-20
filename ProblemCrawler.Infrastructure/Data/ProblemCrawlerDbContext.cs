@@ -14,6 +14,8 @@ namespace ProblemCrawler.Infrastructure.Data
     public class ProblemCrawlerDbContext(DbContextOptions options) : DbContext(options)
     {
         public DbSet<CollectorItemEntity> CollectorItems => Set<CollectorItemEntity>();
+        public DbSet<AnalysedItemEntity> AnalysedItems => Set<AnalysedItemEntity>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<CollectorItemEntity>()

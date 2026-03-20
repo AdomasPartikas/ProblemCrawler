@@ -6,6 +6,7 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Records.Filtering;
+using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Entities;
 using ProblemCrawler.Infrastructure.RawSQL;
@@ -82,6 +83,150 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     entity.AnalysisStage = targetStage;
                 }
             }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<LLMAnalysisCandidate>> GetLlmAnalysisCandidatesAsync(
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            return await _context.CollectorItems
+                .AsNoTracking()
+                .Where(item => item.AnalysisStage == AnalysisStages.ReadyForAnalysis)
+                .OrderBy(item => item.CreatedAt)
+                .Take(batchSize)
+                .Select(item => new LLMAnalysisCandidate(
+                    item.Id,
+                    item.Source,
+                    item.SourceId,
+                    item.ItemType,
+                    item.Content,
+                    item.ParentId,
+                    item.LinkId,
+                    item.AnalysisStage))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<LLMAnalysisCandidate?> GetLlmAnalysisCandidateByIdAsync(
+            Guid collectorItemId,
+            CancellationToken cancellationToken)
+        {
+            return await _context.CollectorItems
+                .AsNoTracking()
+                .Where(item => item.Id == collectorItemId)
+                .Select(item => new LLMAnalysisCandidate(
+                    item.Id,
+                    item.Source,
+                    item.SourceId,
+                    item.ItemType,
+                    item.Content,
+                    item.ParentId,
+                    item.LinkId,
+                    item.AnalysisStage))
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<LLMAnalysisContext?> GetLlmAnalysisContextAsync(
+            Guid collectorItemId,
+            CancellationToken cancellationToken)
+        {
+            var currentEntity = await _context.CollectorItems
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == collectorItemId, cancellationToken);
+
+            if (currentEntity is null)
+            {
+                return null;
+            }
+
+            var current = MapContextItem(currentEntity);
+            LLMContextItem? parent = null;
+            LLMContextItem? post = null;
+
+            if (string.Equals(currentEntity.ItemType, "Comment", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(currentEntity.LinkId))
+                {
+                    var postEntity = await _context.CollectorItems
+                        .AsNoTracking()
+                        .SingleOrDefaultAsync(item =>
+                            item.Source == currentEntity.Source &&
+                            item.SourceId == currentEntity.LinkId,
+                            cancellationToken);
+
+                    if (postEntity is not null)
+                    {
+                        post = MapContextItem(postEntity);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(currentEntity.ParentId) &&
+                    !string.Equals(currentEntity.ParentId, currentEntity.LinkId, StringComparison.Ordinal))
+                {
+                    var parentEntity = await _context.CollectorItems
+                        .AsNoTracking()
+                        .SingleOrDefaultAsync(item =>
+                            item.Source == currentEntity.Source &&
+                            item.SourceId == currentEntity.ParentId,
+                            cancellationToken);
+
+                    if (parentEntity is not null)
+                    {
+                        parent = MapContextItem(parentEntity);
+                    }
+                }
+            }
+
+            return new LLMAnalysisContext(current, parent, post);
+        }
+
+        public async Task UpsertAnalysedItemAsync(
+            AnalysedItemUpsert analysis,
+            CancellationToken cancellationToken)
+        {
+            var item = await _context.CollectorItems
+                .SingleOrDefaultAsync(x => x.Id == analysis.CollectorItemId, cancellationToken);
+
+            if (item is null)
+            {
+                return;
+            }
+
+            var existing = await _context.AnalysedItems
+                .SingleOrDefaultAsync(x => x.CollectorItemId == analysis.CollectorItemId, cancellationToken);
+
+            if (existing is null)
+            {
+                existing = new AnalysedItemEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CollectorItemId = analysis.CollectorItemId,
+                    UpdatedAtUtc = analysis.AnalyzedAtUtc
+                };
+
+                _context.AnalysedItems.Add(existing);
+            }
+
+            existing.ContainsProblem = analysis.Result.ContainsProblem;
+            existing.ProblemSummary = analysis.Result.ProblemSummary;
+            existing.ExpandedProblem = analysis.Result.ExpandedProblem;
+            existing.Industry = analysis.Result.Industry;
+            existing.Actor = analysis.Result.Actor;
+            existing.CurrentSolution = analysis.Result.CurrentSolution;
+            existing.PainLevel = analysis.Result.PainLevel;
+            existing.FrequencySignal = analysis.Result.FrequencySignal;
+            existing.SoftwareOpportunity = analysis.Result.SoftwareOpportunity;
+            existing.AutomationPotential = analysis.Result.AutomationPotential;
+            existing.IsB2B = analysis.Result.IsB2B;
+            existing.IsActionable = analysis.Result.IsActionable;
+            existing.Confidence = Math.Clamp((decimal)analysis.Result.Confidence, 0m, 1m);
+            existing.RawJson = analysis.RawJson;
+            existing.Model = analysis.Model;
+            existing.AnalyzedAtUtc = analysis.AnalyzedAtUtc;
+            existing.UpdatedAtUtc = analysis.AnalyzedAtUtc;
+
+            item.AnalysisStage = AnalysisStages.Analysed;
 
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -187,6 +332,17 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 }
             }
             return collectorItemEntities;
+        }
+
+        private static LLMContextItem MapContextItem(CollectorItemEntity entity)
+        {
+            return new LLMContextItem(
+                entity.SourceId,
+                entity.ItemType,
+                entity.Content,
+                entity.Author,
+                entity.CreatedAt,
+                entity.SourceUrl);
         }
     }
 }

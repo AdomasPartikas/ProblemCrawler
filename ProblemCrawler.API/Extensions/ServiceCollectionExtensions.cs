@@ -1,6 +1,8 @@
 using Hangfire;
 using Hangfire.InMemory;
+using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Pipeline.Clients;
 using ProblemCrawler.Pipeline.Interfaces;
 using ProblemCrawler.Pipeline.Services;
 
@@ -19,8 +21,25 @@ public static class ServiceCollectionExtensions
         services.Configure<FilteringConfiguration>(
             configuration.GetSection("Filtering:Settings"));
 
+        services.Configure<LLMAnalysisSchedulingConfiguration>(
+            configuration.GetSection("LLMAnalysis:Scheduling"));
+
+        services.Configure<LLMAnalysisConfiguration>(
+            configuration.GetSection("LLMAnalysis:Settings"));
+
+        services.Configure<OllamaConfiguration>(
+            configuration.GetSection("LLMAnalysis:Ollama"));
+
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();
         services.AddSingleton<IFilteringSchedulerTask, FilteringSchedulerTask>();
+        services.AddSingleton<ILLMAnalysisSchedulerTask, LLMAnalysisSchedulerTask>();
+
+        services.AddHttpClient<OllamaHttpClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<OllamaConfiguration>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromMilliseconds(options.RequestTimeoutMs);
+        });
 
         services.AddHangfire(static config => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

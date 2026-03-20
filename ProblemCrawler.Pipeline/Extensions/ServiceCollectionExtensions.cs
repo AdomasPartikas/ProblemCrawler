@@ -26,4 +26,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFilteringService, FilteringService>();
         return services;
     }
+
+    /// <summary>
+    /// Registers the LLM analysis pipeline service.
+    /// </summary>
+    public static IServiceCollection AddLLMAnalysisPipeline(this IServiceCollection services)
+    {
+        services.AddScoped<ILLMAnalysisService, LLMAnalysisService>();
+        return services;
+    }
 }

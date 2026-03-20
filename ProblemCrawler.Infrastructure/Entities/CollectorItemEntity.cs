@@ -52,5 +52,10 @@ namespace ProblemCrawler.Infrastructure.Entities
         /// The URL of the source from which the item was collected, if applicable.
         /// </summary>
         public string? SourceUrl { get; set; }
+
+        /// <summary>
+        /// Analysed item projection persisted for this item, when available.
+        /// </summary>
+        public AnalysedItemEntity? AnalysedItem { get; set; }
     }
 }
