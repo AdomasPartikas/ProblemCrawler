@@ -3,16 +3,16 @@ namespace ProblemCrawler.Core.Records.LLM;
 public sealed record LLMAnalysisResult(
     bool ContainsProblem,
     string? ProblemSummary,
-    string? ExpandedProblem,
-    string Industry,
+    string? ProblemDetails,
     string? Actor,
-    string? CurrentSolution,
+    string Industry,
+    string? CurrentWorkaround,
+    string? DesiredOutcome,
     int PainLevel,
-    string FrequencySignal,
+    string UrgencySignal,
     bool SoftwareOpportunity,
-    bool AutomationPotential,
-    bool IsB2B,
     bool IsActionable,
+    string? ActionabilityRationale,
     double Confidence);
 
 public sealed record AnalysedItemUpsert(

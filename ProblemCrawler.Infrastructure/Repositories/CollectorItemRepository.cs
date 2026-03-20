@@ -210,16 +210,16 @@ namespace ProblemCrawler.Infrastructure.Repositories
 
             existing.ContainsProblem = analysis.Result.ContainsProblem;
             existing.ProblemSummary = analysis.Result.ProblemSummary;
-            existing.ExpandedProblem = analysis.Result.ExpandedProblem;
-            existing.Industry = analysis.Result.Industry;
+            existing.ProblemDetails = analysis.Result.ProblemDetails;
             existing.Actor = analysis.Result.Actor;
-            existing.CurrentSolution = analysis.Result.CurrentSolution;
+            existing.Industry = analysis.Result.Industry;
+            existing.CurrentWorkaround = analysis.Result.CurrentWorkaround;
+            existing.DesiredOutcome = analysis.Result.DesiredOutcome;
             existing.PainLevel = analysis.Result.PainLevel;
-            existing.FrequencySignal = analysis.Result.FrequencySignal;
+            existing.UrgencySignal = analysis.Result.UrgencySignal;
             existing.SoftwareOpportunity = analysis.Result.SoftwareOpportunity;
-            existing.AutomationPotential = analysis.Result.AutomationPotential;
-            existing.IsB2B = analysis.Result.IsB2B;
             existing.IsActionable = analysis.Result.IsActionable;
+            existing.ActionabilityRationale = analysis.Result.ActionabilityRationale;
             existing.Confidence = Math.Clamp((decimal)analysis.Result.Confidence, 0m, 1m);
             existing.RawJson = analysis.RawJson;
             existing.Model = analysis.Model;

@@ -13,10 +13,10 @@ public sealed class AnalysedItemConfiguration : IEntityTypeConfiguration<Analyse
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Industry)
-            .HasMaxLength(128)
+            .HasMaxLength(256)
             .IsRequired();
 
-        builder.Property(x => x.FrequencySignal)
+        builder.Property(x => x.UrgencySignal)
             .HasMaxLength(32)
             .IsRequired();
 

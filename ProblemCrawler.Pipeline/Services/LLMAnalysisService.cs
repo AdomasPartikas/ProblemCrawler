@@ -24,7 +24,7 @@ public sealed class LLMAnalysisService(
     private readonly ILogger<LLMAnalysisService> _logger = logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly HashSet<string> AllowedFrequencySignals = ["low", "medium", "high"];
+    private static readonly HashSet<string> AllowedUrgencySignals = ["low", "medium", "high"];
 
     public async Task<LLMAnalysisRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
@@ -236,9 +236,15 @@ public sealed class LLMAnalysisService(
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(result.FrequencySignal) || !AllowedFrequencySignals.Contains(result.FrequencySignal.ToLowerInvariant()))
+        if (string.IsNullOrWhiteSpace(result.UrgencySignal) || !AllowedUrgencySignals.Contains(result.UrgencySignal.ToLowerInvariant()))
         {
-            error = "FrequencySignal must be one of: low, medium, high.";
+            error = "UrgencySignal must be one of: low, medium, high.";
+            return false;
+        }
+
+        if (!result.ContainsProblem && result.IsActionable)
+        {
+            error = "IsActionable cannot be true when ContainsProblem is false.";
             return false;
         }
 
