@@ -29,7 +29,8 @@ public sealed class AnalysedItemConfiguration : IEntityTypeConfiguration<Analyse
             .IsRequired();
 
         builder.Property(x => x.Confidence)
-            .HasPrecision(5, 4);
+            .HasPrecision(5, 4)
+            .IsRequired(false);
 
         builder.HasIndex(x => x.CollectorItemId)
             .IsUnique();

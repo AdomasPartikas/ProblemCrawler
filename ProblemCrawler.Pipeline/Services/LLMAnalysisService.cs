@@ -218,18 +218,6 @@ public sealed class LLMAnalysisService(
             return false;
         }
 
-        if (result.PainLevel < 1 || result.PainLevel > 5)
-        {
-            error = "PainLevel must be in range [1..5].";
-            return false;
-        }
-
-        if (result.Confidence < 0 || result.Confidence > 1)
-        {
-            error = "Confidence must be in range [0..1].";
-            return false;
-        }
-
         if (string.IsNullOrWhiteSpace(result.Industry))
         {
             error = "Industry is required and can be free text.";
@@ -242,14 +230,50 @@ public sealed class LLMAnalysisService(
             return false;
         }
 
-        if (!result.ContainsProblem && result.IsActionable)
+        result = NormalizeResult(result);
+
+        if (string.IsNullOrWhiteSpace(result.ProblemSummary))
         {
-            error = "IsActionable cannot be true when ContainsProblem is false.";
+            error = "ProblemSummary is required and must describe the post content.";
             return false;
         }
 
         return true;
     }
+
+    private static LLMAnalysisResult NormalizeResult(LLMAnalysisResult result)
+    {
+        // Coerce empty strings to null for all optional text fields.
+        var normalized = result with
+        {
+            ProblemDetails = NullIfEmpty(result.ProblemDetails),
+            Actor = NullIfEmpty(result.Actor),
+            CurrentWorkaround = NullIfEmpty(result.CurrentWorkaround),
+            DesiredOutcome = NullIfEmpty(result.DesiredOutcome),
+            ActionabilityRationale = NullIfEmpty(result.ActionabilityRationale),
+            UrgencySignal = result.UrgencySignal?.ToLowerInvariant() ?? "low",
+        };
+
+        // Enforce logical consistency when no problem was found.
+        if (!normalized.ContainsProblem)
+        {
+            normalized = normalized with
+            {
+                SoftwareOpportunity = false,
+                IsActionable = false,
+                Actor = null,
+                ProblemDetails = null,
+                CurrentWorkaround = null,
+                DesiredOutcome = null,
+                ActionabilityRationale = null,
+            };
+        }
+
+        return normalized;
+    }
+
+    private static string? NullIfEmpty(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
 
     private static string NormalizeModelOutput(string raw)
     {
