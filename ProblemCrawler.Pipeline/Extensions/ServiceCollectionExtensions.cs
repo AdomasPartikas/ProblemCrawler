@@ -35,4 +35,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILLMAnalysisService, LLMAnalysisService>();
         return services;
     }
+
+    /// <summary>
+    /// Registers the thread synthesis pipeline service.
+    /// </summary>
+    public static IServiceCollection AddThreadSynthesisPipeline(this IServiceCollection services)
+    {
+        services.AddScoped<IThreadSynthesisService, ThreadSynthesisService>();
+        return services;
+    }
 }

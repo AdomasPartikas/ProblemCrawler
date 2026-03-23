@@ -15,6 +15,8 @@ namespace ProblemCrawler.Infrastructure.Data
     {
         public DbSet<CollectorItemEntity> CollectorItems => Set<CollectorItemEntity>();
         public DbSet<AnalysedItemEntity> AnalysedItems => Set<AnalysedItemEntity>();
+        public DbSet<ThreadSynthesisRunEntity> ThreadSynthesisRuns => Set<ThreadSynthesisRunEntity>();
+        public DbSet<ThreadSynthesizedIdeaEntity> ThreadSynthesizedIdeas => Set<ThreadSynthesizedIdeaEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

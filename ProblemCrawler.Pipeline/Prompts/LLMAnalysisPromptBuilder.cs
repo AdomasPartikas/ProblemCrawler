@@ -98,4 +98,77 @@ public static class LLMAnalysisPromptBuilder
             Return corrected JSON only. No markdown and no extra text.
             """;
     }
+
+    public static string BuildThreadSynthesisPrompt(ThreadSynthesisContext context)
+    {
+        var evidence = string.Join(
+            "\n\n",
+            context.Items.Select((item, index) => $$"""
+                Evidence Item {{index + 1}}
+                - EvidenceNumber: {{index + 1}}
+                - SourceId: {{item.SourceId}}
+                - ItemType: {{item.ItemType}}
+                - Author: {{item.Author ?? "unknown"}}
+                - CreatedAtUtc: {{item.CreatedAtUtc:O}}
+                - ProblemSummary: {{item.ProblemSummary}}
+                - ProblemDetails: {{item.ProblemDetails ?? "null"}}
+                - Actor: {{item.Actor ?? "null"}}
+                - Industry: {{item.Industry}}
+                - CurrentWorkaround: {{item.CurrentWorkaround ?? "null"}}
+                - DesiredOutcome: {{item.DesiredOutcome ?? "null"}}
+                - UrgencySignal: {{item.UrgencySignal}}
+                - ActionabilityRationale: {{item.ActionabilityRationale ?? "null"}}
+                """));
+
+        return $$"""
+            You are synthesizing a Reddit thread into UNIQUE software opportunity ideas.
+
+            The input items below are already filtered to problem-focused, actionable evidence from the SAME root thread.
+            Your job is to merge near-duplicate evidence from the same thread into distinct ideas so one busy thread does not produce many copies of the same opportunity.
+
+            Return ONLY valid JSON with this exact shape:
+            {
+                "ideas": [
+                    {
+                        "problemSummary": "one sentence summary of the unique idea",
+                        "problemDetails": null,
+                        "actor": "person experiencing the problem",
+                        "industry": "short free-text industry label",
+                        "currentWorkaround": null,
+                        "desiredOutcome": null,
+                        "urgencySignal": "low | medium | high",
+                        "softwareOpportunity": true,
+                        "isActionable": true,
+                        "actionabilityRationale": "specific product or workflow opportunity",
+                                    "supportingEvidenceNumbers": [1, 3]
+                    }
+                ]
+            }
+
+            Rules:
+            - Return JSON only. No markdown code fences, no explanation outside the JSON.
+            - Zero ideas is allowed. Use an empty array when the thread does not support a unique actionable software opportunity after deduplication.
+            - Do NOT emit one idea per comment. Merge semantically similar evidence into a single idea.
+            - Keep genuinely different problems separate, even if they appear in the same thread.
+            - Every returned idea must represent an unresolved problem that could plausibly be solved by a specific software product.
+            - problemSummary and industry are required and must be non-empty.
+            - urgencySignal must be exactly one of: low, medium, high.
+            - actor, problemDetails, and actionabilityRationale are required for every returned idea.
+            - At least one of desiredOutcome or currentWorkaround must be non-null for every returned idea.
+            - softwareOpportunity must always be true for returned ideas.
+            - isActionable must always be true for returned ideas.
+            - supportingEvidenceNumbers must be a non-empty array of unique EvidenceNumber values from the evidence list below.
+            - Do not invent evidence numbers.
+            - The application will calculate support counts from the evidence numbers you provide.
+
+            ROOT THREAD:
+            Type: {{context.Root.ItemType}}
+            Title: {{context.Root.Title}}
+            Content:
+            {{context.Root.Content}}
+
+            EVIDENCE ITEMS:
+            {{evidence}}
+            """;
+    }
 }

@@ -6,9 +6,12 @@ namespace ProblemCrawler.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public sealed class AnalysisController(ILLMAnalysisService llmAnalysisService) : ControllerBase
+public sealed class AnalysisController(
+    ILLMAnalysisService llmAnalysisService,
+    IThreadSynthesisService threadSynthesisService) : ControllerBase
 {
     private readonly ILLMAnalysisService _llmAnalysisService = llmAnalysisService;
+    private readonly IThreadSynthesisService _threadSynthesisService = threadSynthesisService;
 
     [HttpPost("llm/test/{collectorItemId:guid}")]
     [ProducesResponseType(typeof(LLMAnalysisExecutionResult), StatusCodes.Status200OK)]
@@ -21,6 +24,14 @@ public sealed class AnalysisController(ILLMAnalysisService llmAnalysisService) :
             return NotFound(result);
         }
 
+        return Ok(result);
+    }
+
+    [HttpPost("thread-synthesis/test/{rootCollectorItemId:guid}")]
+    [ProducesResponseType(typeof(ThreadSynthesisExecutionResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ThreadSynthesisExecutionResult>> TestThreadSynthesis(Guid rootCollectorItemId, CancellationToken cancellationToken)
+    {
+        var result = await _threadSynthesisService.ExecuteForThreadAsync(rootCollectorItemId, cancellationToken);
         return Ok(result);
     }
 }

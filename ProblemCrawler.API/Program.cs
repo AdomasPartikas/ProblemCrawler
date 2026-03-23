@@ -17,6 +17,7 @@ builder.Services.AddInfrastructure(builder.Configuration.GetSection("DatabaseSet
 builder.Services.AddCollectionPipeline();
 builder.Services.AddFilteringPipeline();
 builder.Services.AddLLMAnalysisPipeline();
+builder.Services.AddThreadSynthesisPipeline();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

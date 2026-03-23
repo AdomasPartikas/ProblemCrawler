@@ -27,12 +27,19 @@ public static class ServiceCollectionExtensions
         services.Configure<LLMAnalysisConfiguration>(
             configuration.GetSection("LLMAnalysis:Settings"));
 
+        services.Configure<ThreadSynthesisSchedulingConfiguration>(
+            configuration.GetSection("ThreadSynthesis:Scheduling"));
+
+        services.Configure<ThreadSynthesisConfiguration>(
+            configuration.GetSection("ThreadSynthesis:Settings"));
+
         services.Configure<OllamaConfiguration>(
             configuration.GetSection("LLMAnalysis:Ollama"));
 
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();
         services.AddSingleton<IFilteringSchedulerTask, FilteringSchedulerTask>();
         services.AddSingleton<ILLMAnalysisSchedulerTask, LLMAnalysisSchedulerTask>();
+        services.AddSingleton<IThreadSynthesisSchedulerTask, ThreadSynthesisSchedulerTask>();
 
         services.AddHttpClient<OllamaHttpClient>((sp, client) =>
         {

@@ -22,6 +22,10 @@ public static class ApplicationBuilderExtensions
             .GetRequiredService<IOptions<LLMAnalysisSchedulingConfiguration>>()
             .Value;
 
+        var threadSynthesisOptions = app.Services
+            .GetRequiredService<IOptions<ThreadSynthesisSchedulingConfiguration>>()
+            .Value;
+
         if (collectorOptions.Enabled)
         {
             RecurringJob.AddOrUpdate<ICollectorSchedulerTask>(
@@ -70,6 +74,23 @@ public static class ApplicationBuilderExtensions
             if (llmAnalysisOptions.RunOnStartup)
             {
                 BackgroundJob.Enqueue<ILLMAnalysisSchedulerTask>(static job => job.ExecuteAsync());
+            }
+        }
+
+        if (threadSynthesisOptions.Enabled)
+        {
+            RecurringJob.AddOrUpdate<IThreadSynthesisSchedulerTask>(
+                recurringJobId: "thread-synthesis:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: threadSynthesisOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(threadSynthesisOptions.TimeZoneId)
+                });
+
+            if (threadSynthesisOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<IThreadSynthesisSchedulerTask>(static job => job.ExecuteAsync());
             }
         }
 
