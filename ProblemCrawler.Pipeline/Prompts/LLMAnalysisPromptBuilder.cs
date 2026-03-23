@@ -42,9 +42,9 @@ public static class LLMAnalysisPromptBuilder
                 Rules:
                 - Return JSON only. No markdown code fences, no explanation outside the JSON.
                 - problemSummary is REQUIRED and MUST always be a non-empty sentence describing the post content, even when containsProblem is false. Examples for rejected posts: "User sharing a tax savings tip that already works for them.", "Job posting for a React developer.", "Freelancer asking the community for opinions."
-                - industry and urgencySignal are always required. industry is free text (e.g. "Freelance Services", "Cybersecurity"). urgencySignal must be exactly one of: low, medium, high.
+                - industry and urgencySignal are always required. industry is free text (e.g. "freelance services", "cybersecurity"). urgencySignal must be exactly one of: low, medium, high.
                 - All other optional fields (problemDetails, actor, currentWorkaround, desiredOutcome, actionabilityRationale) MUST be null — never an empty string "" — when they have no meaningful content.
-                - actor must be the type of person experiencing the problem (e.g. "Freelancer", "Accountant"), not the cause of it. Set to null when containsProblem is false.
+                - actor must be the type of person experiencing the problem (e.g. "freelancer", "accountant"), not the cause of it. Set to null when containsProblem is false.
                 - If containsProblem is false: softwareOpportunity MUST be false, isActionable MUST be false, and actor, problemDetails, currentWorkaround, desiredOutcome, actionabilityRationale MUST all be null.
                 - If softwareOpportunity is false or isActionable is false, then containsProblem must also be false.
                 - If containsProblem is true, then actor and problemDetails must be non-null.
@@ -126,6 +126,8 @@ public static class LLMAnalysisPromptBuilder
             The input items below are already filtered to problem-focused, actionable evidence from the SAME root thread.
             Your job is to merge near-duplicate evidence from the same thread into distinct ideas so one busy thread does not produce many copies of the same opportunity.
 
+            IMPORTANT: If an evidence item is just someone sharing a working solution or tip (not describing an unresolved problem they face), do NOT synthesize an idea from it.
+
             Return ONLY valid JSON with this exact shape:
             {
                 "ideas": [
@@ -148,13 +150,14 @@ public static class LLMAnalysisPromptBuilder
             Rules:
             - Return JSON only. No markdown code fences, no explanation outside the JSON.
             - Zero ideas is allowed. Use an empty array when the thread does not support a unique actionable software opportunity after deduplication.
+            - If there is no genuine unresolved problem (e.g., someone is sharing a tip that works), return an empty ideas array instead of synthesizing an idea.
             - Do NOT emit one idea per comment. Merge semantically similar evidence into a single idea.
             - Keep genuinely different problems separate, even if they appear in the same thread.
             - Every returned idea must represent an unresolved problem that could plausibly be solved by a specific software product.
             - problemSummary and industry are required and must be non-empty.
             - urgencySignal must be exactly one of: low, medium, high.
-            - actor, problemDetails, and actionabilityRationale are required for every returned idea.
-            - At least one of desiredOutcome or currentWorkaround must be non-null for every returned idea.
+            - actor, problemDetails, and actionabilityRationale are required for every returned idea. Never omit these or use placeholder text like "null", "n/a", "unknown", or "not specified".
+            - At least one of desiredOutcome or currentWorkaround must be non-null for every returned idea. Never use placeholder text like "null" for these fields.
             - softwareOpportunity must always be true for returned ideas.
             - isActionable must always be true for returned ideas.
             - supportingEvidenceNumbers must be a non-empty array of unique EvidenceNumber values from the evidence list below.

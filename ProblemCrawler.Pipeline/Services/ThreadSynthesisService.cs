@@ -436,8 +436,22 @@ public sealed class ThreadSynthesisService(
             rawJson);
     }
 
-    private static string? NullIfEmpty(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string? NullIfEmpty(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+
+        // Treat literal "null", "n/a", "none" as null (common placeholder strings from models)
+        return trimmed.Equals("null", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("n/a", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("none", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : trimmed;
+    }
 
     private static string NormalizeModelOutput(string raw)
     {
