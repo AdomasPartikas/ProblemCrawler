@@ -4,6 +4,7 @@ public sealed class AnalysedItemEntity
 {
     public Guid Id { get; set; }
     public Guid CollectorItemId { get; set; }
+    public Guid RootCollectorItemId { get; set; }
 
     public bool ContainsProblem { get; set; }
     public string ProblemSummary { get; set; } = string.Empty;

@@ -13,6 +13,7 @@ public static class LLMAnalysisPromptBuilder
                 - The author or their community is actively experiencing an ongoing, unsolved friction or pain point.
                 - A software product or digital service could realistically be built to address it.
                 - People would plausibly pay money for such a solution.
+                - The problem is concrete enough to identify the affected actor, the operational pain, and either the current workaround or desired outcome.
 
                 Do NOT set containsProblem to true for any of these cases:
                 - The author is sharing a solution that already works for them (a success story, tip, or brag post).
@@ -41,15 +42,20 @@ public static class LLMAnalysisPromptBuilder
                 Rules:
                 - Return JSON only. No markdown code fences, no explanation outside the JSON.
                 - problemSummary is REQUIRED and MUST always be a non-empty sentence describing the post content, even when containsProblem is false. Examples for rejected posts: "User sharing a tax savings tip that already works for them.", "Job posting for a React developer.", "Freelancer asking the community for opinions."
-                - industry and urgencySignal are always required. industry is free text (e.g. "freelance services", "cybersecurity"). urgencySignal must be exactly one of: low, medium, high.
+                - industry and urgencySignal are always required. industry is free text (e.g. "Freelance Services", "Cybersecurity"). urgencySignal must be exactly one of: low, medium, high.
                 - All other optional fields (problemDetails, actor, currentWorkaround, desiredOutcome, actionabilityRationale) MUST be null — never an empty string "" — when they have no meaningful content.
-                - actor must be the type of person experiencing the problem (e.g. "freelancer", "accountant"), not the cause of it. Set to null when containsProblem is false.
+                - actor must be the type of person experiencing the problem (e.g. "Freelancer", "Accountant"), not the cause of it. Set to null when containsProblem is false.
                 - If containsProblem is false: softwareOpportunity MUST be false, isActionable MUST be false, and actor, problemDetails, currentWorkaround, desiredOutcome, actionabilityRationale MUST all be null.
+                - If softwareOpportunity is false or isActionable is false, then containsProblem must also be false.
+                - If containsProblem is true, then actor and problemDetails must be non-null.
+                - If containsProblem is true, at least one of desiredOutcome or currentWorkaround must be non-null.
+                - If containsProblem is true, actionabilityRationale must be non-null and describe a specific product or workflow solution, not a vague statement that "tools could help".
                 - isActionable must be true ONLY when a specific, buildable software product could realistically solve this problem commercially. A generic statement like "tools could help" does not qualify. Describe the concrete product opportunity in actionabilityRationale.
                 - softwareOpportunity should be true only when you can reasonably envision a software product addressing this problem.
 
                 CURRENT ITEM:
                 Type: {{context.Current.ItemType}}
+                Title: {{context.Current.Title}}
                 Content:
                 {{context.Current.Content}}
                 """;
@@ -59,6 +65,7 @@ public static class LLMAnalysisPromptBuilder
             prompt += $$"""
 
                 POST CONTEXT:
+                Title: {{context.Post.Title}}
                 {{context.Post.Content}}
                 """;
         }
@@ -68,6 +75,7 @@ public static class LLMAnalysisPromptBuilder
             prompt += $$"""
 
                 PARENT COMMENT CONTEXT:
+                Title: {{context.Parent.Title}}
                 {{context.Parent.Content}}
                 """;
         }

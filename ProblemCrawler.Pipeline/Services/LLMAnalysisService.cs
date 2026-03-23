@@ -238,6 +238,69 @@ public sealed class LLMAnalysisService(
             return false;
         }
 
+        if (result.ContainsProblem)
+        {
+            if (!result.SoftwareOpportunity)
+            {
+                error = "ContainsProblem cannot be true when SoftwareOpportunity is false.";
+                return false;
+            }
+
+            if (!result.IsActionable)
+            {
+                error = "ContainsProblem cannot be true when IsActionable is false.";
+                return false;
+            }
+
+            if (result.Actor is null)
+            {
+                error = "Actor is required when ContainsProblem is true.";
+                return false;
+            }
+
+            if (result.ProblemDetails is null)
+            {
+                error = "ProblemDetails is required when ContainsProblem is true.";
+                return false;
+            }
+
+            if (result.DesiredOutcome is null && result.CurrentWorkaround is null)
+            {
+                error = "At least one of DesiredOutcome or CurrentWorkaround is required when ContainsProblem is true.";
+                return false;
+            }
+
+            if (result.ActionabilityRationale is null)
+            {
+                error = "ActionabilityRationale is required when ContainsProblem is true.";
+                return false;
+            }
+        }
+        else
+        {
+            if (result.SoftwareOpportunity)
+            {
+                error = "SoftwareOpportunity must be false when ContainsProblem is false.";
+                return false;
+            }
+
+            if (result.IsActionable)
+            {
+                error = "IsActionable must be false when ContainsProblem is false.";
+                return false;
+            }
+
+            if (result.Actor is not null ||
+                result.ProblemDetails is not null ||
+                result.CurrentWorkaround is not null ||
+                result.DesiredOutcome is not null ||
+                result.ActionabilityRationale is not null)
+            {
+                error = "Optional detail fields must be null when ContainsProblem is false.";
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -253,21 +316,6 @@ public sealed class LLMAnalysisService(
             ActionabilityRationale = NullIfEmpty(result.ActionabilityRationale),
             UrgencySignal = result.UrgencySignal?.ToLowerInvariant() ?? "low",
         };
-
-        // Enforce logical consistency when no problem was found.
-        if (!normalized.ContainsProblem)
-        {
-            normalized = normalized with
-            {
-                SoftwareOpportunity = false,
-                IsActionable = false,
-                Actor = null,
-                ProblemDetails = null,
-                CurrentWorkaround = null,
-                DesiredOutcome = null,
-                ActionabilityRationale = null,
-            };
-        }
 
         return normalized;
     }

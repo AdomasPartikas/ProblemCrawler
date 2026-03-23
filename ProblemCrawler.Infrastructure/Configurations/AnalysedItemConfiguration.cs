@@ -34,6 +34,7 @@ public sealed class AnalysedItemConfiguration : IEntityTypeConfiguration<Analyse
 
         builder.HasIndex(x => x.CollectorItemId)
             .IsUnique();
+        builder.HasIndex(x => x.RootCollectorItemId);
 
         builder.HasIndex(x => x.IsActionable);
         builder.HasIndex(x => x.Industry);
@@ -43,5 +44,10 @@ public sealed class AnalysedItemConfiguration : IEntityTypeConfiguration<Analyse
             .WithOne(x => x.AnalysedItem)
             .HasForeignKey<AnalysedItemEntity>(x => x.CollectorItemId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<CollectorItemEntity>()
+            .WithMany()
+            .HasForeignKey(x => x.RootCollectorItemId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

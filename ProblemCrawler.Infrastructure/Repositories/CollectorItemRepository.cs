@@ -208,6 +208,8 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 _context.AnalysedItems.Add(existing);
             }
 
+            var rootCollectorItemId = await ResolveRootCollectorItemIdAsync(item, cancellationToken);
+
             existing.ContainsProblem = analysis.Result.ContainsProblem;
             existing.ProblemSummary = analysis.Result.ProblemSummary;
             existing.ProblemDetails = analysis.Result.ProblemDetails;
@@ -223,6 +225,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
             existing.Model = analysis.Model;
             existing.AnalyzedAtUtc = analysis.AnalyzedAtUtc;
             existing.UpdatedAtUtc = analysis.AnalyzedAtUtc;
+            existing.RootCollectorItemId = rootCollectorItemId;
 
             item.AnalysisStage = AnalysisStages.Analysed;
 
@@ -332,11 +335,39 @@ namespace ProblemCrawler.Infrastructure.Repositories
             return collectorItemEntities;
         }
 
+        private async Task<Guid> ResolveRootCollectorItemIdAsync(CollectorItemEntity item, CancellationToken cancellationToken)
+        {
+            var rootSourceId =
+                string.Equals(item.ItemType, "Comment", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(item.LinkId)
+                    ? item.LinkId
+                    : item.SourceId;
+
+            if (string.IsNullOrWhiteSpace(rootSourceId))
+            {
+                return item.Id;
+            }
+
+            var rootId = await _context.CollectorItems
+                .AsNoTracking()
+                .Where(x => x.Source == item.Source && x.SourceId == rootSourceId)
+                .Select(x => (Guid?)x.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            return rootId ?? item.Id;
+        }
+
         private static LLMContextItem MapContextItem(CollectorItemEntity entity)
         {
+            string? title = null;
+            if (entity.Metadata.TryGetValue("Title", out var rawTitle) && rawTitle is string mappedTitle)
+            {
+                title = mappedTitle;
+            }
+
             return new LLMContextItem(
                 entity.SourceId,
                 entity.ItemType,
+                title,
                 entity.Content,
                 entity.Author,
                 entity.CreatedAt,

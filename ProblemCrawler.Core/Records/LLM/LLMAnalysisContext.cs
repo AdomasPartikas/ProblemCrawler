@@ -3,6 +3,7 @@ namespace ProblemCrawler.Core.Records.LLM;
 public sealed record LLMContextItem(
     string SourceId,
     string ItemType,
+    string? Title,
     string? Content,
     string? Author,
     DateTime CreatedAt,

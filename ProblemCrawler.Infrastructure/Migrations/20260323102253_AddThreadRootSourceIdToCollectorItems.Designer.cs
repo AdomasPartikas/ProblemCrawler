@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProblemCrawler.Infrastructure.Data;
@@ -12,9 +13,11 @@ using ProblemCrawler.Infrastructure.Data;
 namespace ProblemCrawler.Infrastructure.Migrations
 {
     [DbContext(typeof(ProblemCrawlerDbContext))]
-    partial class ProblemCrawlerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260323102253_AddThreadRootSourceIdToCollectorItems")]
+    partial class AddThreadRootSourceIdToCollectorItems
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -81,9 +84,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<Guid>("RootCollectorItemId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("SoftwareOpportunity")
                         .HasColumnType("boolean");
 
@@ -105,8 +105,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.HasIndex("Industry");
 
                     b.HasIndex("IsActionable");
-
-                    b.HasIndex("RootCollectorItemId");
 
                     b.ToTable("AnalysedItems", (string)null);
                 });
@@ -155,7 +153,13 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.Property<string>("SourceUrl")
                         .HasColumnType("text");
 
+                    b.Property<string>("ThreadRootSourceId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Source", "ThreadRootSourceId");
 
                     b.HasIndex("SourceId", "Source")
                         .IsUnique();
@@ -169,12 +173,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .WithOne("AnalysedItem")
                         .HasForeignKey("ProblemCrawler.Infrastructure.Entities.AnalysedItemEntity", "CollectorItemId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", null)
-                        .WithMany()
-                        .HasForeignKey("RootCollectorItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CollectorItem");
