@@ -322,7 +322,11 @@ namespace ProblemCrawler.Infrastructure.Repositories
 
             var threadItems = await _context.AnalysedItems
                 .AsNoTracking()
-                .Where(item => item.RootCollectorItemId == rootCollectorItemId)
+                .Where(item =>
+                    item.RootCollectorItemId == rootCollectorItemId &&
+                    item.ContainsProblem &&
+                    item.SoftwareOpportunity &&
+                    item.IsActionable)
                 .Join(
                     _context.CollectorItems.AsNoTracking(),
                     analysed => analysed.CollectorItemId,
