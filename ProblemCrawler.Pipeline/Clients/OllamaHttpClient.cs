@@ -1,9 +1,10 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ProblemCrawler.Pipeline.Clients;
 
@@ -44,6 +45,28 @@ public sealed class OllamaHttpClient(
                 if (response.IsSuccessStatusCode)
                 {
                     var parsed = JsonSerializer.Deserialize<OllamaGenerateResponse>(responseBody, JsonOptions);
+                    // Ollama metrics
+                    if (parsed is not null)
+                    {
+                        var genSeconds = parsed.EvalDuration / 1_000_000_000.0;
+                        var promptSeconds = parsed.PromptEvalDuration / 1_000_000_000.0;
+                        var totalSeconds = parsed.TotalDuration / 1_000_000_000.0;
+
+                        var tokensPerSecond = genSeconds > 0
+                            ? parsed.EvalCount / genSeconds
+                            : 0;
+
+                        _logger.LogInformation(
+                            "[ollama] tokens={Tokens} promptTokens={PromptTokens} genSec={GenSec:F2} promptSec={PromptSec:F2} totalSec={TotalSec:F2} speed={Speed:F2} tok/s",
+                            parsed.EvalCount,
+                            parsed.PromptEvalCount,
+                            genSeconds,
+                            promptSeconds,
+                            totalSeconds,
+                            tokensPerSecond
+                        );
+                    }
+
                     return parsed?.Response;
                 }
 
@@ -73,5 +96,20 @@ public sealed class OllamaHttpClient(
     private sealed class OllamaGenerateResponse
     {
         public string? Response { get; set; }
+
+        [JsonPropertyName("eval_count")]
+        public int EvalCount { get; set; }
+
+        [JsonPropertyName("eval_duration")]
+        public long EvalDuration { get; set; }
+
+        [JsonPropertyName("prompt_eval_count")]
+        public int PromptEvalCount { get; set; }
+
+        [JsonPropertyName("prompt_eval_duration")]
+        public long PromptEvalDuration { get; set; }
+
+        [JsonPropertyName("total_duration")]
+        public long TotalDuration { get; set; }
     }
 }
