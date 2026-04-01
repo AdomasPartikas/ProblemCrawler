@@ -18,6 +18,14 @@ public static class ApplicationBuilderExtensions
             .GetRequiredService<IOptions<FilteringSchedulingConfiguration>>()
             .Value;
 
+        var llmAnalysisOptions = app.Services
+            .GetRequiredService<IOptions<LLMAnalysisSchedulingConfiguration>>()
+            .Value;
+
+        var threadSynthesisOptions = app.Services
+            .GetRequiredService<IOptions<ThreadSynthesisSchedulingConfiguration>>()
+            .Value;
+
         if (collectorOptions.Enabled)
         {
             RecurringJob.AddOrUpdate<ICollectorSchedulerTask>(
@@ -49,6 +57,40 @@ public static class ApplicationBuilderExtensions
             if (filteringOptions.RunOnStartup)
             {
                 BackgroundJob.Enqueue<IFilteringSchedulerTask>(static job => job.ExecuteAsync());
+            }
+        }
+
+        if (llmAnalysisOptions.Enabled)
+        {
+            RecurringJob.AddOrUpdate<ILLMAnalysisSchedulerTask>(
+                recurringJobId: "llm-analysis:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: llmAnalysisOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(llmAnalysisOptions.TimeZoneId)
+                });
+
+            if (llmAnalysisOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<ILLMAnalysisSchedulerTask>(static job => job.ExecuteAsync());
+            }
+        }
+
+        if (threadSynthesisOptions.Enabled)
+        {
+            RecurringJob.AddOrUpdate<IThreadSynthesisSchedulerTask>(
+                recurringJobId: "thread-synthesis:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: threadSynthesisOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(threadSynthesisOptions.TimeZoneId)
+                });
+
+            if (threadSynthesisOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<IThreadSynthesisSchedulerTask>(static job => job.ExecuteAsync());
             }
         }
 

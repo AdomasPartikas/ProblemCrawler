@@ -14,6 +14,10 @@ namespace ProblemCrawler.Infrastructure.Data
     public class ProblemCrawlerDbContext(DbContextOptions options) : DbContext(options)
     {
         public DbSet<CollectorItemEntity> CollectorItems => Set<CollectorItemEntity>();
+        public DbSet<AnalysedItemEntity> AnalysedItems => Set<AnalysedItemEntity>();
+        public DbSet<ThreadSynthesisRunEntity> ThreadSynthesisRuns => Set<ThreadSynthesisRunEntity>();
+        public DbSet<ThreadSynthesizedIdeaEntity> ThreadSynthesizedIdeas => Set<ThreadSynthesizedIdeaEntity>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<CollectorItemEntity>()

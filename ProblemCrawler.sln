@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.4.11605.240
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ProblemCrawler.API", "ProblemCrawler.API\ProblemCrawler.API.csproj", "{97759A7D-7978-4380-A9D5-6ACC6E1AA763}"
 EndProject
@@ -16,6 +16,17 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ProblemCrawler.Collectors", "ProblemCrawler.Collectors", "{D7787EF0-06A5-AAF9-74F6-344C5C2D3AFD}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProblemCrawler.Collectors.Reddit", "ProblemCrawler.Collectors\ProblemCrawler.Collectors.Reddit\ProblemCrawler.Collectors.Reddit.csproj", "{62DE4E91-BDF4-4F8B-ADFC-BEB97F3BE9C1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docker", "Docker", "{D53FA73D-BF7B-43ED-8630-A13B216FAEF3}"
+	ProjectSection(SolutionItems) = preProject
+		Docker\docker-compose.yml = Docker\docker-compose.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ollama", "ollama", "{39029FE3-7EED-43CC-B25B-5E042668CDF2}"
+	ProjectSection(SolutionItems) = preProject
+		Docker\ollama\Dockerfile = Docker\ollama\Dockerfile
+		Docker\ollama\entrypoint.sh = Docker\ollama\entrypoint.sh
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -105,5 +116,9 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{62DE4E91-BDF4-4F8B-ADFC-BEB97F3BE9C1} = {D7787EF0-06A5-AAF9-74F6-344C5C2D3AFD}
+		{39029FE3-7EED-43CC-B25B-5E042668CDF2} = {D53FA73D-BF7B-43ED-8630-A13B216FAEF3}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BAA87EC9-DB06-4BE5-A42F-09E0CB00A4E9}
 	EndGlobalSection
 EndGlobal

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProblemCrawler.Infrastructure.Data;
@@ -12,9 +13,11 @@ using ProblemCrawler.Infrastructure.Data;
 namespace ProblemCrawler.Infrastructure.Migrations
 {
     [DbContext(typeof(ProblemCrawlerDbContext))]
-    partial class ProblemCrawlerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260323085434_MakeAnalysedItemPainLevelAndConfidenceNullable")]
+    partial class MakeAnalysedItemPainLevelAndConfidenceNullable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -81,9 +84,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
-                    b.Property<Guid>("RootCollectorItemId")
-                        .HasColumnType("uuid");
-
                     b.Property<bool>("SoftwareOpportunity")
                         .HasColumnType("boolean");
 
@@ -105,8 +105,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.HasIndex("Industry");
 
                     b.HasIndex("IsActionable");
-
-                    b.HasIndex("RootCollectorItemId");
 
                     b.ToTable("AnalysedItems", (string)null);
                 });
@@ -163,121 +161,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.ToTable("CollectorItems");
                 });
 
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesisRunEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AnalysedItemCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("AnalyzedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("LatestAnalysedItemUpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("LatestCollectorItemCreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Model")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<Guid>("RootCollectorItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ThreadItemCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AnalyzedAtUtc");
-
-                    b.HasIndex("RootCollectorItemId");
-
-                    b.ToTable("ThreadSynthesisRuns", (string)null);
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ActionabilityRationale")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Actor")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("AnalyzedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CurrentWorkaround")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DesiredOutcome")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Industry")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<bool>("IsActionable")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ProblemDetails")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProblemSummary")
-                        .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
-
-                    b.Property<string>("RawJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<bool>("SoftwareOpportunity")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("SupportingDistinctAuthorCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SupportingMentionCount")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ThreadSynthesisRunId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UrgencySignal")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AnalyzedAtUtc");
-
-                    b.HasIndex("Industry");
-
-                    b.HasIndex("IsActionable");
-
-                    b.HasIndex("ThreadSynthesisRunId");
-
-                    b.ToTable("ThreadSynthesizedIdeas", (string)null);
-                });
-
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.AnalysedItemEntity", b =>
                 {
                     b.HasOne("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", "CollectorItem")
@@ -286,43 +169,12 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", null)
-                        .WithMany()
-                        .HasForeignKey("RootCollectorItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.Navigation("CollectorItem");
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesisRunEntity", b =>
-                {
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", null)
-                        .WithMany()
-                        .HasForeignKey("RootCollectorItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEntity", b =>
-                {
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ThreadSynthesisRunEntity", "ThreadSynthesisRun")
-                        .WithMany("Ideas")
-                        .HasForeignKey("ThreadSynthesisRunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ThreadSynthesisRun");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", b =>
                 {
                     b.Navigation("AnalysedItem");
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesisRunEntity", b =>
-                {
-                    b.Navigation("Ideas");
                 });
 #pragma warning restore 612, 618
         }

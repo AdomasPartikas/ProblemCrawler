@@ -1,5 +1,6 @@
 using Hangfire;
 using ProblemCrawler.API.Extensions;
+using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Collectors.Reddit.Extensions;
 using ProblemCrawler.Infrastructure;
 using ProblemCrawler.Pipeline.Extensions;
@@ -16,6 +17,9 @@ builder.Services.AddRedditCollector(builder.Configuration.GetSection("Collectors
 builder.Services.AddInfrastructure(builder.Configuration.GetSection("DatabaseSettings"));
 builder.Services.AddCollectionPipeline();
 builder.Services.AddFilteringPipeline();
+builder.Services.AddLLMAnalysisPipeline();
+builder.Services.AddThreadSynthesisPipeline();
+builder.Services.AddHostedService<OllamaStartupService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
