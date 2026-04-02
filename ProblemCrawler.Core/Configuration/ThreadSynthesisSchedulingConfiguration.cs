@@ -13,7 +13,7 @@ public sealed class ThreadSynthesisSchedulingConfiguration
     /// <summary>
     /// Cron expression used for the recurring thread synthesis job.
     /// </summary>
-    public string CronExpression { get; set; } = "20 * * * *";
+    public string CronExpression { get; set; } = "0 6 * * *";
 
     /// <summary>
     /// Time zone identifier used when evaluating the cron expression.

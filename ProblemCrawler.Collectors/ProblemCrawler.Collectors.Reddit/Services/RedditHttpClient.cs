@@ -121,7 +121,7 @@ public class RedditHttpClient(
 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 1;
+                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 220;
                     await Task.Delay((int)(retryAfter * 1000), cancellationToken);
                     continue;
                 }
