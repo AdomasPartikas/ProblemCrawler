@@ -3,6 +3,7 @@ using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Records.Reddit;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -62,7 +63,7 @@ public class CollectionService(ICollector collector, ICollectorItemRepository re
             buffer.Clear();
         }
 
-        _logger.LogInformation("Collection completed. Total items collected: {Total}", responses.Count);
+        _logger.LogCollectionCompleted(responses.Count);
 
         return (responses.Count, responses);
     }

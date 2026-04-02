@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Logging.Methods;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -56,8 +57,7 @@ public sealed class OllamaHttpClient(
                             ? parsed.EvalCount / genSeconds
                             : 0;
 
-                        _logger.LogInformation(
-                            "[ollama] tokens={Tokens} promptTokens={PromptTokens} genSec={GenSec:F2} promptSec={PromptSec:F2} totalSec={TotalSec:F2} speed={Speed:F2} tok/s",
+                        _logger.LogOllamaRequestMetrics(
                             parsed.EvalCount,
                             parsed.PromptEvalCount,
                             genSeconds,
@@ -76,12 +76,12 @@ public sealed class OllamaHttpClient(
                     continue;
                 }
 
-                _logger.LogWarning("Ollama request failed with status {StatusCode}. Body: {Body}", response.StatusCode, responseBody);
+                _logger.LogOllamaRequestFailed((int)response.StatusCode);
                 return null;
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Ollama request attempt {Attempt} failed.", attempt + 1);
+                _logger.LogOllamaRequestAttemptFailed(ex, attempt + 1);
                 if (attempt < _options.MaxRetries - 1)
                 {
                     await Task.Delay(_options.RequestDelayMs, cancellationToken);
@@ -89,7 +89,7 @@ public sealed class OllamaHttpClient(
             }
         }
 
-        _logger.LogError("Ollama request failed after {MaxRetries} attempts.", _options.MaxRetries);
+        _logger.LogOllamaRequestFailedAfterRetries(_options.MaxRetries);
         return null;
     }
 

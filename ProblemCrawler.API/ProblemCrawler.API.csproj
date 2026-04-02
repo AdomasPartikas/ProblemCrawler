@@ -4,6 +4,7 @@
     <ProjectReference Include="..\ProblemCrawler.Pipeline\ProblemCrawler.Pipeline.csproj" />
     <ProjectReference Include="..\ProblemCrawler.Infrastructure\ProblemCrawler.Infrastructure.csproj" />
     <ProjectReference Include="..\ProblemCrawler.Collectors\ProblemCrawler.Collectors.Reddit\ProblemCrawler.Collectors.Reddit.csproj" />
+    <ProjectReference Include="..\ProblemCrawler.Logging\ProblemCrawler.Logging.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4">

@@ -7,6 +7,7 @@ using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Extensions;
 using ProblemCrawler.Core.Records.Reddit;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Collectors.Reddit.Services;
 
@@ -133,12 +134,12 @@ public class RedditHttpClient(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error fetching from Reddit");
+                _logger.LogRedditRequestUnexpectedError(ex);
                 throw;
             }
         }
 
-        _logger.LogError("Failed to fetch from Reddit after {MaxRetries} attempts", _config.MaxRetries);
+        _logger.LogRedditRequestFailedAfterRetries(_config.MaxRetries);
         return default;
     }
 

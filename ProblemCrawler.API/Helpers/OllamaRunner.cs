@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Logging.Methods;
 using ProblemCrawler.Core.Scripts;
 
 namespace ProblemCrawler.API.Helpers
@@ -75,7 +76,7 @@ namespace ProblemCrawler.API.Helpers
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "[ollama] Verification failed after startup");
+                logger.LogOllamaVerificationFailed(ex);
             }
         }
         /// <summary>
@@ -94,7 +95,7 @@ namespace ProblemCrawler.API.Helpers
             IConfiguration configuration,
             CancellationToken cancellationToken)
         {
-            logger.LogInformation("[ollama] Shutting down Ollama...");
+            logger.LogOllamaShuttingDown();
             if (gpu == GpuVendor.amd || gpu == GpuVendor.unknown)
             {
                 var settings = OllamaWslConfiguration.FromConfiguration(configuration);
@@ -107,7 +108,7 @@ namespace ProblemCrawler.API.Helpers
                 var dockerFolder = Path.Combine(projectRoot, "Docker");
                 await RunProcess("cmd.exe", "/c docker compose down", dockerFolder, logger, cancellationToken);
             }
-            logger.LogInformation("[ollama] Ollama stopped");
+            logger.LogOllamaStopped();
         }
         /// <summary>
         /// Creates a temporary Bash script file based on the specified configuration and returns the path to the
@@ -233,7 +234,7 @@ namespace ProblemCrawler.API.Helpers
 
             if (models.Count == 0)
             {
-                logger.LogWarning("[ollama] No models reported by /api/ps — cannot verify VRAM usage");
+                logger.LogOllamaNoModelsReported();
                 return;
             }
 
@@ -242,14 +243,12 @@ namespace ProblemCrawler.API.Helpers
             var sizeVram = model.GetProperty("size_vram").GetInt64();
             var size = model.GetProperty("size").GetInt64();
 
-            logger.LogInformation(
-                "[ollama] Model: {Name} | VRAM: {Vram} MB | Total: {Total} MB",
-                name, sizeVram / 1024 / 1024, size / 1024 / 1024);
+            logger.LogOllamaVramUsage(name, sizeVram / 1024 / 1024, size / 1024 / 1024);
 
             if (sizeVram > 0)
-                logger.LogInformation("[ollama] GPU is ACTIVE");
+                logger.LogOllamaGpuActive();
             else
-                logger.LogWarning("[ollama] Running on CPU — GPU not being used!");
+                logger.LogOllamaRunningOnCpu();
         }
 
         /// <summary>
@@ -296,7 +295,7 @@ namespace ProblemCrawler.API.Helpers
             await process.WaitForExitAsync(cancellationToken);
 
             if (process.ExitCode != 0)
-                logger.LogError("[ollama] Process exited with code {Code}", process.ExitCode);
+                logger.LogOllamaProcessExited(process.ExitCode);
             else
                 logger.LogDebug("[ollama] Process finished successfully");
         }

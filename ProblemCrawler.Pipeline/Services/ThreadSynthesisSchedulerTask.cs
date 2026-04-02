@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -34,8 +35,7 @@ public sealed class ThreadSynthesisSchedulerTask(
             var service = scope.ServiceProvider.GetRequiredService<IThreadSynthesisService>();
             var summary = await service.ExecuteAsync(CancellationToken.None);
 
-            _logger.LogInformation(
-                "Thread synthesis run completed. Evaluated: {Evaluated}, synthesized: {Synthesized}, skipped: {Skipped}, failed: {Failed}",
+            _logger.LogThreadSynthesisCompleted(
                 summary.Evaluated,
                 summary.Synthesized,
                 summary.Skipped,

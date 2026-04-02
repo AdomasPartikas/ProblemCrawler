@@ -4,6 +4,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.Filtering;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -81,8 +82,7 @@ public sealed class FilteringService(
 
         var summary = new FilteringRunSummary(evaluated, ready, removed, deleted, updated);
 
-        _logger.LogInformation(
-            "Filtering completed. Evaluated: {Evaluated}, ready: {Ready}, removed: {Removed}, deleted: {Deleted}, updated: {Updated}",
+        _logger.LogFilteringCompleted(
             summary.Evaluated,
             summary.ReadyForAnalysis,
             summary.Removed,

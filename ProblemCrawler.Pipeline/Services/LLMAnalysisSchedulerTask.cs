@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -34,8 +35,7 @@ public sealed class LLMAnalysisSchedulerTask(
             var service = scope.ServiceProvider.GetRequiredService<ILLMAnalysisService>();
             var summary = await service.ExecuteAsync(CancellationToken.None);
 
-            _logger.LogInformation(
-                "LLM analysis run completed. Evaluated: {Evaluated}, analysed: {Analysed}, skipped: {Skipped}, failed: {Failed}",
+            _logger.LogLlmAnalysisCompleted(
                 summary.Evaluated,
                 summary.Analysed,
                 summary.Skipped,

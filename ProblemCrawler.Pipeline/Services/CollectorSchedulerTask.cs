@@ -4,6 +4,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
 using Microsoft.Extensions.Logging;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -56,7 +57,7 @@ public sealed class CollectorSchedulerTask(
         foreach (var service in collectionServices)
         {
             var (total, _) = await service.CollectAsync(CancellationToken.None);
-            _logger.LogInformation("Scheduled collection run completed. Total items: {Total}", total);
+            _logger.LogScheduledCollectionCompleted(total);
         }
     }
 }

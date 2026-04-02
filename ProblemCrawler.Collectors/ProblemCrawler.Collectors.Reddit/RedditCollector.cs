@@ -7,6 +7,7 @@ using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Records.Reddit;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Collectors.Reddit;
 
@@ -35,6 +36,8 @@ public class RedditCollector(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var subreddits = GetConfiguredSubreddits();
+
+        _logger.LogRedditCollectorStarted(subreddits.Count);
 
         if (subreddits.Count == 0)
         {

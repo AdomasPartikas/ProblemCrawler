@@ -3,14 +3,16 @@ using ProblemCrawler.API.Extensions;
 using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Collectors.Reddit.Extensions;
 using ProblemCrawler.Infrastructure;
+using ProblemCrawler.Logging.Extensions;
 using ProblemCrawler.Pipeline.Extensions;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddProblemCrawlerLogging();
+
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddLogging();
 builder.Services.AddCollectorScheduling(builder.Configuration);
 
 builder.Services.AddRedditCollector(builder.Configuration.GetSection("Collectors:Reddit"));

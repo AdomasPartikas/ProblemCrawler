@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -51,8 +52,7 @@ public sealed class FilteringSchedulerTask(
 
         var result = await filteringService.ExecuteAsync(CancellationToken.None);
 
-        _logger.LogInformation(
-            "Filtering run completed. Evaluated: {Evaluated}, ready: {Ready}, removed: {Removed}, deleted: {Deleted}, updated: {Updated}",
+        _logger.LogFilteringCompleted(
             result.Evaluated,
             result.ReadyForAnalysis,
             result.Removed,

@@ -7,6 +7,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -71,8 +72,7 @@ public sealed class LLMAnalysisService(
 
         var summary = new LLMAnalysisRunSummary(evaluated, analysed, skipped, failed);
 
-        _logger.LogInformation(
-            "LLM analysis completed. Evaluated: {Evaluated}, analysed: {Analysed}, skipped: {Skipped}, failed: {Failed}",
+        _logger.LogLlmAnalysisCompleted(
             summary.Evaluated,
             summary.Analysed,
             summary.Skipped,
@@ -139,7 +139,7 @@ public sealed class LLMAnalysisService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "LLM analysis attempt {Attempt} failed for item {ItemId}", attempt, candidate.Id);
+                _logger.LogOllamaRequestAttemptFailed(ex, attempt);
             }
         }
 

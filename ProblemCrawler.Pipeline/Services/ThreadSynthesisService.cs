@@ -6,6 +6,7 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Pipeline.Clients;
 using ProblemCrawler.Pipeline.Prompts;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -70,8 +71,7 @@ public sealed class ThreadSynthesisService(
 
         var summary = new ThreadSynthesisRunSummary(evaluated, synthesized, skipped, failed);
 
-        _logger.LogInformation(
-            "Thread synthesis completed. Evaluated: {Evaluated}, synthesized: {Synthesized}, skipped: {Skipped}, failed: {Failed}",
+        _logger.LogThreadSynthesisCompleted(
             summary.Evaluated,
             summary.Synthesized,
             summary.Skipped,
@@ -139,7 +139,7 @@ public sealed class ThreadSynthesisService(
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Thread synthesis attempt {Attempt} failed for root item {RootCollectorItemId}", attempt, rootCollectorItemId);
+                _logger.LogOllamaRequestAttemptFailed(ex, attempt);
             }
         }
 

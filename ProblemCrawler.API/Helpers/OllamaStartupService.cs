@@ -1,5 +1,6 @@
 ﻿using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
+using ProblemCrawler.Logging.Methods;
 
 namespace ProblemCrawler.API.Helpers
 {
@@ -16,26 +17,26 @@ namespace ProblemCrawler.API.Helpers
             {
                 try
                 {
-                    logger.LogInformation("[ollama] startup attempt {attempt}/{Max}", attempt, OllamaStartupServiceConfiguration.MaxRetries);
+                    logger.LogOllamaStartupAttempt(attempt + 1, OllamaStartupServiceConfiguration.MaxRetries);
                     await OllamaRunner.RunOllama(_activeGpu, logger, configuration, cancellationToken);
-                    logger.LogInformation("[ollama] Started successfully");
+                    logger.LogOllamaStarted();
                     return;
                 }
                 catch (Exception ex) when (attempt < OllamaStartupServiceConfiguration.MaxRetries)
                 {
-                    logger.LogWarning(ex, "[ollama] Attempt {Attempt} failed retrying in {Delay}s", attempt, OllamaStartupServiceConfiguration.RetryDelay.TotalSeconds);
+                    logger.LogOllamaStartupAttemptFailed(ex, attempt + 1, OllamaStartupServiceConfiguration.RetryDelay.TotalSeconds);
                     await Task.Delay(OllamaStartupServiceConfiguration.RetryDelay, cancellationToken);
 
                 }
             }
-            logger.LogCritical("[ollama] Failed to start after {Max} attempts.", OllamaStartupServiceConfiguration.MaxRetries);
+            logger.LogOllamaStartupFailed(OllamaStartupServiceConfiguration.MaxRetries);
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-           
+
             await OllamaRunner.StopOllama(_activeGpu, logger, configuration, default);
-            
+
         }
     }
 }
