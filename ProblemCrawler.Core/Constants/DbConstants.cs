@@ -2,5 +2,5 @@
 
 public static class DbConstants
 {
-    public const int batchSize = 1000;
+    public const int batchSize = 50;
 }
