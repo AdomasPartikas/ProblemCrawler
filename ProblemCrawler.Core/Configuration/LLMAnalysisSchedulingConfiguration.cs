@@ -13,7 +13,7 @@ public sealed class LLMAnalysisSchedulingConfiguration
     /// <summary>
     /// Cron expression used for the recurring LLM analysis job.
     /// </summary>
-    public string CronExpression { get; set; } = "10 * * * *";
+    public string CronExpression { get; set; } = "0 0 * * *";
 
     /// <summary>
     /// Time zone identifier used when evaluating the cron expression.
