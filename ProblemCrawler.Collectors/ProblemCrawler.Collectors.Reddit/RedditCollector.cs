@@ -84,7 +84,6 @@ public class RedditCollector(
 
             if (HasNoPosts(page))
             {
-                _logger.LogCollectorSubredditPageEmpty(Name, subreddit, pagesProcessed);
                 break;
             }
 
@@ -110,11 +109,6 @@ public class RedditCollector(
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }
 
-        if (HasReachedPageLimit(pageCount))
-        {
-            _logger.LogCollectorSubredditPageLimitReached(Name, subreddit, pagesProcessed, _config.MaxPages);
-        }
-
         _logger.LogCollectorSubredditCollectionCompleted(Name, subreddit, pagesProcessed, yieldedPosts, yieldedComments);
     }
 
@@ -137,14 +131,6 @@ public class RedditCollector(
             var page = await _httpClient.GetPostCommentsAsync(subreddit, post.Id!, after, cancellationToken);
             commentPage++;
 
-            _logger.LogCollectorCommentPageFetched(
-                Name,
-                subreddit,
-                post.Id,
-                commentPage,
-                page.Comments.Count,
-                !string.IsNullOrWhiteSpace(page.After));
-
             if (HasNoComments(page))
             {
                 break;
@@ -157,11 +143,9 @@ public class RedditCollector(
 
                 yield return _mapper.Map<CollectorItem>(comment);
                 commentCount++;
-                _logger.LogCollectorCommentYielded(Name, subreddit, post.Id, comment.Id);
 
                 if (HasReachedCommentLimit(commentCount))
                 {
-                    _logger.LogCollectorCommentLimitReached(Name, subreddit, post.Id, commentCount, _config.MaxCommentsPerPost);
                     break;
                 }
 
@@ -170,11 +154,9 @@ public class RedditCollector(
                     cancellationToken.ThrowIfCancellationRequested();
                     yield return _mapper.Map<CollectorItem>(reply);
                     commentCount++;
-                    _logger.LogCollectorCommentYielded(Name, subreddit, post.Id, reply.Id);
 
                     if (HasReachedCommentLimit(commentCount))
                     {
-                        _logger.LogCollectorCommentLimitReached(Name, subreddit, post.Id, commentCount, _config.MaxCommentsPerPost);
                         limitReached = true;
                         break;
                     }

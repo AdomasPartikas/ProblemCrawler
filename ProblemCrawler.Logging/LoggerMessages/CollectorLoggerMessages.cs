@@ -40,16 +40,16 @@ public static partial class CollectorLoggerMessages
     [LoggerMessage(EventId = 1200, Level = LogLevel.Debug, Message = "Collector HTTP request started. Collector: {Collector}, Url: {Url}, Attempt: {Attempt}/{MaxRetries}")]
     public static partial void LogCollectorHttpRequestStarted(this ILogger logger, string collector, string url, int attempt, int maxRetries);
 
-    [LoggerMessage(EventId = 1201, Level = LogLevel.Information, Message = "Collector HTTP request succeeded. Collector: {Collector}, Url: {Url}, StatusCode: {StatusCode}, ElapsedMs: {ElapsedMs}")]
+    [LoggerMessage(EventId = 1201, Level = LogLevel.Debug, Message = "Collector HTTP request succeeded. Collector: {Collector}, Url: {Url}, StatusCode: {StatusCode}, ElapsedMs: {ElapsedMs}")]
     public static partial void LogCollectorHttpRequestSucceeded(this ILogger logger, string collector, string url, int statusCode, long elapsedMs);
 
     [LoggerMessage(EventId = 1202, Level = LogLevel.Warning, Message = "Collector HTTP request failed with status code. Collector: {Collector}, Url: {Url}, StatusCode: {StatusCode}, Attempt: {Attempt}/{MaxRetries}")]
     public static partial void LogCollectorHttpRequestFailedStatusCode(this ILogger logger, string collector, string url, int statusCode, int attempt, int maxRetries);
 
-    [LoggerMessage(EventId = 1203, Level = LogLevel.Warning, Message = "Collector API rate limit hit. Collector: {Collector}, Url: {Url}, Attempt: {Attempt}/{MaxRetries}, WaitSeconds: {RetryAfterSeconds}")]
+    [LoggerMessage(EventId = 1203, Level = LogLevel.Information, Message = "Collector API rate limit hit. Collector: {Collector}, Url: {Url}, Attempt: {Attempt}/{MaxRetries}, WaitSeconds: {RetryAfterSeconds}")]
     public static partial void LogCollectorHttpRequestRateLimited(this ILogger logger, string collector, string url, int attempt, int maxRetries, double retryAfterSeconds);
 
-    [LoggerMessage(EventId = 1204, Level = LogLevel.Information, Message = "Waiting before next collector HTTP attempt. Collector: {Collector}, Reason: {Reason}, DelayMs: {DelayMs}, NextAttempt: {NextAttempt}/{MaxRetries}")]
+    [LoggerMessage(EventId = 1204, Level = LogLevel.Debug, Message = "Waiting before next collector HTTP attempt. Collector: {Collector}, Reason: {Reason}, DelayMs: {DelayMs}, NextAttempt: {NextAttempt}/{MaxRetries}")]
     public static partial void LogCollectorHttpRetryDelay(this ILogger logger, string collector, string reason, int delayMs, int nextAttempt, int maxRetries);
 
     // Failure events.
