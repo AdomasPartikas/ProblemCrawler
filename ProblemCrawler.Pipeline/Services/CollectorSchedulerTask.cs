@@ -4,7 +4,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Interfaces;
 using Microsoft.Extensions.Logging;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Pipeline.Services;
 

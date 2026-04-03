@@ -3,7 +3,7 @@ using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Records.Reddit;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Pipeline.Services;
 

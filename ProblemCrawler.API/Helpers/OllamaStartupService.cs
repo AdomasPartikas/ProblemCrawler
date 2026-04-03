@@ -1,6 +1,6 @@
 ﻿using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.API.Helpers
 {

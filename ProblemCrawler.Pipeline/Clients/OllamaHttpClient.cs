@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 using System.Net;
 using System.Text;
 using System.Text.Json;

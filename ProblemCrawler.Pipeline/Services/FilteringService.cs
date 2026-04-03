@@ -4,7 +4,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.Filtering;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Pipeline.Services;
 

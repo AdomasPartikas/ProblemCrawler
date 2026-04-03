@@ -6,7 +6,7 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Pipeline.Clients;
 using ProblemCrawler.Pipeline.Prompts;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Pipeline.Services;
 

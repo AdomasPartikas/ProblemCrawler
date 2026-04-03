@@ -1,4 +1,4 @@
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
@@ -7,7 +7,7 @@ using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Records.Reddit;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Collectors.Reddit;
 
@@ -37,7 +37,7 @@ public class RedditCollector(
     {
         var subreddits = GetConfiguredSubreddits();
 
-        _logger.LogRedditCollectorStarted(subreddits.Count);
+        _logger.LogCollectorStarted(Name, subreddits.Count);
 
         if (subreddits.Count == 0)
         {
@@ -62,20 +62,43 @@ public class RedditCollector(
     {
         string? afterToken = null;
         int pageCount = 0;
+        int pagesProcessed = 0;
+        int yieldedPosts = 0;
+        int yieldedComments = 0;
+
+        _logger.LogCollectorSubredditCollectionStarted(Name, subreddit, _config.MaxPages, _config.FetchComments, _config.RequestDelayMs);
 
         while (!HasReachedPageLimit(pageCount))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var page = await _httpClient.GetSubredditPostsAsync(subreddit, afterToken, cancellationToken);
+            pagesProcessed++;
+
+            _logger.LogCollectorSubredditPageFetched(
+                Name,
+                subreddit,
+                pagesProcessed,
+                page.Posts.Count,
+                !string.IsNullOrWhiteSpace(page.After));
 
             if (HasNoPosts(page))
             {
+                _logger.LogCollectorSubredditPageEmpty(Name, subreddit, pagesProcessed);
                 break;
             }
 
             await foreach (var item in GatherItemsFromPostsAsync(subreddit, page.Posts, cancellationToken))
             {
+                if (string.Equals(item.ItemType, "Post", StringComparison.OrdinalIgnoreCase))
+                {
+                    yieldedPosts++;
+                }
+                else if (string.Equals(item.ItemType, "Comment", StringComparison.OrdinalIgnoreCase))
+                {
+                    yieldedComments++;
+                }
+
                 yield return item;
             }
 
@@ -86,6 +109,13 @@ public class RedditCollector(
 
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }
+
+        if (HasReachedPageLimit(pageCount))
+        {
+            _logger.LogCollectorSubredditPageLimitReached(Name, subreddit, pagesProcessed, _config.MaxPages);
+        }
+
+        _logger.LogCollectorSubredditCollectionCompleted(Name, subreddit, pagesProcessed, yieldedPosts, yieldedComments);
     }
 
     /// <summary>
@@ -98,12 +128,22 @@ public class RedditCollector(
     {
         string? after = null;
         int commentCount = 0;
+        int commentPage = 0;
 
         while (!HasReachedCommentLimit(commentCount))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             var page = await _httpClient.GetPostCommentsAsync(subreddit, post.Id!, after, cancellationToken);
+            commentPage++;
+
+            _logger.LogCollectorCommentPageFetched(
+                Name,
+                subreddit,
+                post.Id,
+                commentPage,
+                page.Comments.Count,
+                !string.IsNullOrWhiteSpace(page.After));
 
             if (HasNoComments(page))
             {
@@ -117,18 +157,24 @@ public class RedditCollector(
 
                 yield return _mapper.Map<CollectorItem>(comment);
                 commentCount++;
+                _logger.LogCollectorCommentYielded(Name, subreddit, post.Id, comment.Id);
 
                 if (HasReachedCommentLimit(commentCount))
+                {
+                    _logger.LogCollectorCommentLimitReached(Name, subreddit, post.Id, commentCount, _config.MaxCommentsPerPost);
                     break;
+                }
 
                 foreach (var reply in FlattenReplies(comment))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     yield return _mapper.Map<CollectorItem>(reply);
                     commentCount++;
+                    _logger.LogCollectorCommentYielded(Name, subreddit, post.Id, reply.Id);
 
                     if (HasReachedCommentLimit(commentCount))
                     {
+                        _logger.LogCollectorCommentLimitReached(Name, subreddit, post.Id, commentCount, _config.MaxCommentsPerPost);
                         limitReached = true;
                         break;
                     }
@@ -168,6 +214,12 @@ public class RedditCollector(
             cancellationToken.ThrowIfCancellationRequested();
 
             var postItem = _mapper.Map<CollectorItem>(post);
+
+            _logger.LogCollectorPostYielded(
+                Name,
+                subreddit,
+                post.Id,
+                post.NumComments);
 
             yield return postItem;
 

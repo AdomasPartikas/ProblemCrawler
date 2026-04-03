@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using ProblemCrawler.Core.Configuration;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 using ProblemCrawler.Core.Scripts;
 
 namespace ProblemCrawler.API.Helpers

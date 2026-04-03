@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Collectors.Reddit.Contracts;
@@ -7,7 +8,7 @@ using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Extensions;
 using ProblemCrawler.Core.Records.Reddit;
-using ProblemCrawler.Logging.Methods;
+using ProblemCrawler.Logging.LoggerMessages;
 
 namespace ProblemCrawler.Collectors.Reddit.Services;
 
@@ -19,6 +20,8 @@ public class RedditHttpClient(
     ILogger<RedditHttpClient> logger,
     RedditCollectorConfiguration config)
 {
+    private const string CollectorName = "Reddit";
+
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly ILogger<RedditHttpClient> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly RedditCollectorConfiguration _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -104,42 +107,57 @@ public class RedditHttpClient(
     {
         for (int attempt = 0; attempt < _config.MaxRetries; attempt++)
         {
+            var currentAttempt = attempt + 1;
+
             try
             {
                 if (attempt > 0)
                 {
+                    _logger.LogCollectorHttpRetryDelay(CollectorName, "RetryBackoff", _config.RequestDelayMs, currentAttempt, _config.MaxRetries);
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
                 }
 
+                _logger.LogCollectorHttpRequestStarted(CollectorName, url, currentAttempt, _config.MaxRetries);
+
+                var stopwatch = Stopwatch.StartNew();
                 var response = await _httpClient.GetAsync(url, cancellationToken);
+                stopwatch.Stop();
 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
                     var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
+
+                    _logger.LogCollectorHttpRequestSucceeded(CollectorName, url, (int)response.StatusCode, stopwatch.ElapsedMilliseconds);
                     return result;
                 }
 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 220;
+
+                    _logger.LogCollectorHttpRequestRateLimited(CollectorName, url, currentAttempt, _config.MaxRetries, retryAfter);
+
                     await Task.Delay((int)(retryAfter * 1000), cancellationToken);
                     continue;
                 }
 
+                _logger.LogCollectorHttpRequestFailedStatusCode(CollectorName, url, (int)response.StatusCode, currentAttempt, _config.MaxRetries);
+
                 if (attempt < _config.MaxRetries - 1)
                 {
+                    _logger.LogCollectorHttpRetryDelay(CollectorName, "StatusCodeRetry", _config.RequestDelayMs, currentAttempt + 1, _config.MaxRetries);
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogRedditRequestUnexpectedError(ex);
+                _logger.LogCollectorRequestUnexpectedError(ex, CollectorName);
                 throw;
             }
         }
 
-        _logger.LogRedditRequestFailedAfterRetries(_config.MaxRetries);
+        _logger.LogCollectorRequestFailedAfterRetries(CollectorName, _config.MaxRetries);
         return default;
     }
 
