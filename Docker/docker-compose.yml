@@ -9,6 +9,8 @@ services:
       - ollama_data_nvidia:/root/.ollama
     restart: unless-stopped
     profiles: ["nvidia"]
+    environment:
+      - OLLAMA_MODELS=${OLLAMA_MODELS:?OLLAMA_MODELS is required}
     deploy:
       resources:
         reservations:

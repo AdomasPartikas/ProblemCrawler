@@ -44,4 +44,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IThreadSynthesisService, ThreadSynthesisService>();
         return services;
     }
+
+    /// <summary>
+    /// Registers the embedding pipeline service.
+    /// </summary>
+    public static IServiceCollection AddEmbeddingPipeline(this IServiceCollection services)
+    {
+        services.AddScoped<IIdeaEmbeddingService, IdeaEmbeddingService>();
+        return services;
+    }
+
 }

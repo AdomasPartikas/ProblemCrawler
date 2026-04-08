@@ -19,6 +19,7 @@ builder.Services.AddCollectionPipeline();
 builder.Services.AddFilteringPipeline();
 builder.Services.AddLLMAnalysisPipeline();
 builder.Services.AddThreadSynthesisPipeline();
+builder.Services.AddEmbeddingPipeline();
 builder.Services.AddHostedService<OllamaStartupService>();
 var app = builder.Build();
 

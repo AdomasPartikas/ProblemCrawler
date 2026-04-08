@@ -5,6 +5,7 @@ using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Models.Reddit;
+using ProblemCrawler.Core.Records.Embedding;
 using ProblemCrawler.Core.Records.Filtering;
 using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Infrastructure.Data;
@@ -376,6 +377,69 @@ namespace ProblemCrawler.Infrastructure.Repositories
                 synthesisItems.Count,
                 synthesisItems.Max(item => item.CreatedAtUtc),
                 synthesisItems.Max(item => item.AnalysedUpdatedAtUtc));
+        }
+
+        public async Task<IReadOnlyList<EmbeddingCandidate>> GetEmbeddingCandidatesAsync(
+            int batchSize,
+            string model,
+            CancellationToken cancellationToken)
+        {
+            return await _context.ThreadSynthesizedIdeas
+                .AsNoTracking()
+                .Where(idea =>
+                    idea.Embedding == null ||
+                    idea.Embedding.Model != model ||
+                    idea.UpdatedAtUtc > idea.Embedding.UpdatedAtUtc)
+                .OrderBy(idea => idea.AnalyzedAtUtc)
+                .Take(batchSize)
+                .Select(idea => new EmbeddingCandidate(
+                    idea.Id,
+                    idea.ProblemSummary,
+                    idea.ProblemDetails,
+                    idea.Actor,
+                    idea.Industry,
+                    idea.DesiredOutcome,
+                    idea.CurrentWorkaround))
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task UpsertEmbeddingAsync(
+            IReadOnlyList<EmbeddingUpsert> upserts,
+            CancellationToken cancellationToken)
+        {
+            if (upserts.Count == 0)
+            {
+                return;
+            }
+
+            var ideaIds = upserts.Select(u => u.IdeaId).ToHashSet();
+
+            var existing = await _context.ThreadSynthesizedIdeasEmbedding
+                .Where(e => ideaIds.Contains(e.ThreadSynthesizedIdeaId))
+                .ToDictionaryAsync(e => e.ThreadSynthesizedIdeaId, cancellationToken);
+
+            foreach (var upsert in upserts)
+            {
+                if (existing.TryGetValue(upsert.IdeaId, out var entity))
+                {
+                    entity.Model = upsert.Model;
+                    entity.Embedding = new Pgvector.Vector(upsert.Embedding);
+                    entity.UpdatedAtUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    _context.ThreadSynthesizedIdeasEmbedding.Add(new ThreadSynthesizedIdeaEmbeddingEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        ThreadSynthesizedIdeaId = upsert.IdeaId,
+                        Model = upsert.Model,
+                        Embedding = new Pgvector.Vector(upsert.Embedding),
+                        CreatedAtUtc = DateTime.UtcNow,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    });
+                }
+            }
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task UpsertThreadSynthesisAsync(

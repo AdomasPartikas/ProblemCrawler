@@ -108,6 +108,10 @@ public static class OllamaScriptSections
         "echo '[ollama] Starting ollama serve with GPU env vars...'",
         "unset OLLAMA_LLM_LIBRARY",
         "export OLLAMA_VULKAN=1",
+        "export OLLAMA_FLASH_ATTENTION=true",
+        "export OLLAMA_NUM_CTX=8192",
+        "export OLLAMA_KV_CACHE_TYPE=q8_0",
+        "export OLLAMA_NUM_PARALLEL=1",
         "export GGML_VK_VISIBLE_DEVICES=0",
         "export OLLAMA_DEBUG=0",
         $"nohup {ollamaPath} serve > {logPath} 2>&1 &"

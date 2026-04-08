@@ -34,4 +34,14 @@ public sealed class OllamaConfiguration
     /// HTTP timeout in milliseconds.
     /// </summary>
     public int RequestTimeoutMs { get; set; } = 30000;
+
+    /// <summary>
+    /// Model name used for embedding.
+    /// </summary>
+    public string EmbedModel { get; set; } = "nomic-embed-text";
+
+    /// <summary>
+    /// Relative endpoint used for embedding requests.
+    /// </summary>
+    public string EmbedPath { get; set; } = "/api/embeddings";
 }

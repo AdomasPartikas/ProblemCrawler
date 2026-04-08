@@ -25,6 +25,9 @@ public static class ApplicationBuilderExtensions
         var threadSynthesisOptions = app.Services
             .GetRequiredService<IOptions<ThreadSynthesisSchedulingConfiguration>>()
             .Value;
+        var embeddingOptions = app.Services
+            .GetRequiredService<IOptions<EmbeddingSchedulingConfiguration>>()
+            .Value;
 
         if (collectorOptions.Enabled)
         {
@@ -91,6 +94,23 @@ public static class ApplicationBuilderExtensions
             if (threadSynthesisOptions.RunOnStartup)
             {
                 BackgroundJob.Enqueue<IThreadSynthesisSchedulerTask>(static job => job.ExecuteAsync());
+            }
+        }
+
+        if (embeddingOptions.Enabled)
+        {
+            RecurringJob.AddOrUpdate<IIdeaEmbeddingSchedulerTask>(
+                recurringJobId: "idea-embedding:run-all",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: embeddingOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(embeddingOptions.TimeZoneId)
+                });
+
+            if (embeddingOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<IIdeaEmbeddingSchedulerTask>(static job => job.ExecuteAsync());
             }
         }
 

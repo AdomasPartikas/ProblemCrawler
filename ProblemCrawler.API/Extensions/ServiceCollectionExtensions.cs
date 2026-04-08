@@ -36,10 +36,17 @@ public static class ServiceCollectionExtensions
         services.Configure<OllamaConfiguration>(
             configuration.GetSection("LLMAnalysis:Ollama"));
 
+        services.Configure<EmbeddingSchedulingConfiguration>(
+             configuration.GetSection("Embedding:Scheduling"));
+
+        services.Configure<EmbeddingConfiguration>(
+            configuration.GetSection("Embedding:Settings"));
+
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();
         services.AddSingleton<IFilteringSchedulerTask, FilteringSchedulerTask>();
         services.AddSingleton<ILLMAnalysisSchedulerTask, LLMAnalysisSchedulerTask>();
         services.AddSingleton<IThreadSynthesisSchedulerTask, ThreadSynthesisSchedulerTask>();
+        services.AddSingleton<IIdeaEmbeddingSchedulerTask, IdeaEmbeddingSchedulerTask>();
 
         services.AddHttpClient<OllamaHttpClient>((sp, client) =>
         {

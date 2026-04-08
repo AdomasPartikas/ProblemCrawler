@@ -21,4 +21,5 @@ public sealed class ThreadSynthesizedIdeaEntity
     public DateTime UpdatedAtUtc { get; set; }
 
     public ThreadSynthesisRunEntity ThreadSynthesisRun { get; set; } = null!;
+    public ThreadSynthesizedIdeaEmbeddingEntity? Embedding { get; set; }
 }

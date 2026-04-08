@@ -166,10 +166,12 @@ namespace ProblemCrawler.API.Helpers
             var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\.."));
             var dockerFolder = Path.Combine(projectRoot, "Docker");
             var profile = gpu.ToString();
+            var models = OllamaSetupConfiguration.FromConfiguration(configuration).Models;
+            var modelsList = string.Join(",", models);
 
             await RunProcess(
                 "cmd.exe",
-                $"/c docker compose --profile {profile} build --no-cache && docker compose --profile {profile} up -d",
+                $"/c set OLLAMA_MODELS={modelsList} && docker compose --profile {profile} build --no-cache && docker compose --profile {profile} up -d",
                 dockerFolder,
                 logger,
                 cancellationToken);
@@ -296,7 +298,11 @@ namespace ProblemCrawler.API.Helpers
             await process.WaitForExitAsync(cancellationToken);
 
             if (process.ExitCode != 0)
+            {
                 logger.LogError("[ollama] Process exited with code {Code}", process.ExitCode);
+                throw new InvalidOperationException(
+                    $"Process '{fileName} {arguments}' exited with code {process.ExitCode}");
+            }
             else
                 logger.LogDebug("[ollama] Process finished successfully");
         }

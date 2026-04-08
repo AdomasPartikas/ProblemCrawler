@@ -17,9 +17,11 @@ namespace ProblemCrawler.Infrastructure.Data
         public DbSet<AnalysedItemEntity> AnalysedItems => Set<AnalysedItemEntity>();
         public DbSet<ThreadSynthesisRunEntity> ThreadSynthesisRuns => Set<ThreadSynthesisRunEntity>();
         public DbSet<ThreadSynthesizedIdeaEntity> ThreadSynthesizedIdeas => Set<ThreadSynthesizedIdeaEntity>();
+        public DbSet<ThreadSynthesizedIdeaEmbeddingEntity> ThreadSynthesizedIdeasEmbedding => Set<ThreadSynthesizedIdeaEmbeddingEntity>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.HasPostgresExtension("vector");
             modelBuilder.Entity<CollectorItemEntity>()
                 .HasIndex(e => new { e.SourceId, e.Source })
                 .IsUnique();
