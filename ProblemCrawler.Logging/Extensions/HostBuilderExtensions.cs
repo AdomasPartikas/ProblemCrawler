@@ -5,6 +5,8 @@ namespace ProblemCrawler.Logging.Extensions;
 
 public static class HostBuilderExtensions
 {
+    private const string ConsoleOutputTemplate = "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}";
+
     public static TBuilder AddProblemCrawlerLogging<TBuilder>(this TBuilder builder)
         where TBuilder : IHostApplicationBuilder
     {
@@ -13,9 +15,10 @@ public static class HostBuilderExtensions
         builder.Services.AddSerilog((services, loggerConfiguration) =>
         {
             loggerConfiguration
-                .ReadFrom.Configuration(builder.Configuration)
+                .MinimumLevel.Verbose()
                 .ReadFrom.Services(services)
-                .Enrich.FromLogContext();
+                .Enrich.FromLogContext()
+                .WriteTo.Console(outputTemplate: ConsoleOutputTemplate);
         });
 
         return builder;
