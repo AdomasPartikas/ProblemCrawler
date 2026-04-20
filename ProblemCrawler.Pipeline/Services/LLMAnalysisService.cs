@@ -1,12 +1,13 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using ProblemCrawler.Pipeline.Clients;
-using ProblemCrawler.Pipeline.Prompts;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
+using ProblemCrawler.Pipeline.Clients;
+using ProblemCrawler.Pipeline.Helper;
+using ProblemCrawler.Pipeline.Prompts;
+using System.Text.Json;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -15,6 +16,7 @@ public sealed class LLMAnalysisService(
     OllamaHttpClient ollamaHttpClient,
     IOptions<LLMAnalysisConfiguration> analysisOptions,
     IOptions<OllamaConfiguration> ollamaOptions,
+    OllamaJobGate ollamaJobGate,
     ILogger<LLMAnalysisService> logger) : ILLMAnalysisService
 {
     private readonly ICollectorItemRepository _repository = repository;
@@ -22,18 +24,19 @@ public sealed class LLMAnalysisService(
     private readonly LLMAnalysisConfiguration _analysisOptions = analysisOptions.Value;
     private readonly OllamaConfiguration _ollamaOptions = ollamaOptions.Value;
     private readonly ILogger<LLMAnalysisService> _logger = logger;
-
+    private readonly OllamaJobGate _ollamaJobGate = ollamaJobGate;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedUrgencySignals = ["low", "medium", "high"];
 
     public async Task<LLMAnalysisRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
+        await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
         var evaluated = 0;
         var analysed = 0;
         var skipped = 0;
         var failed = 0;
 
-        var batchSize = _analysisOptions.BatchSize <= 0 ? 100 : _analysisOptions.BatchSize;
+        var batchSize = _analysisOptions.BatchSize <= 0 ? 25 : _analysisOptions.BatchSize;
 
         while (!cancellationToken.IsCancellationRequested)
         {

@@ -22,6 +22,9 @@ public sealed class AnalysedItemEntity
 
     public string RawJson { get; set; } = "{}";
     public string Model { get; set; } = string.Empty;
+    public bool IsSynthesized { get; set; }
+    public bool IsSynthesisInProgress { get; set; }
+    public DateTime? SynthesisClaimedAtUtc { get; set; }
     public DateTime AnalyzedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 

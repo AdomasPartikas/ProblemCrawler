@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -13,9 +14,11 @@ using ProblemCrawler.Infrastructure.Data;
 namespace ProblemCrawler.Infrastructure.Migrations
 {
     [DbContext(typeof(ProblemCrawlerDbContext))]
-    partial class ProblemCrawlerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260413111924_AddClusteringArchives")]
+    partial class AddClusteringArchives
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -64,12 +67,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.Property<bool>("IsActionable")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsSynthesisInProgress")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsSynthesized")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Model")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -94,9 +91,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
                     b.Property<bool>("SoftwareOpportunity")
                         .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("SynthesisClaimedAtUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -248,15 +242,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Label")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Opportunity")
-                        .HasColumnType("text");
 
                     b.Property<int>("Size")
                         .HasColumnType("integer");

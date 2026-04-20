@@ -109,7 +109,7 @@ public static class OllamaScriptSections
         "unset OLLAMA_LLM_LIBRARY",
         "export OLLAMA_VULKAN=1",
         "export OLLAMA_FLASH_ATTENTION=true",
-        "export OLLAMA_NUM_CTX=8192",
+        "export OLLAMA_NUM_CTX=4096",
         "export OLLAMA_KV_CACHE_TYPE=q8_0",
         "export OLLAMA_NUM_PARALLEL=1",
         "export GGML_VK_VISIBLE_DEVICES=0",

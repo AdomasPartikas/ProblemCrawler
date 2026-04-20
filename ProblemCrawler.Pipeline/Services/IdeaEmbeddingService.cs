@@ -4,6 +4,7 @@ using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.Embedding;
 using ProblemCrawler.Pipeline.Clients;
+using ProblemCrawler.Pipeline.Helper;
 
 namespace ProblemCrawler.Pipeline.Services
 {
@@ -11,6 +12,7 @@ namespace ProblemCrawler.Pipeline.Services
         ICollectorItemRepository repository,
         IOptions<OllamaConfiguration> ollamaOptions,
         IOptions<EmbeddingConfiguration> embeddingOptions,
+        OllamaJobGate ollamaJobGate,
         OllamaHttpClient ollamaHttpClient,
         ILogger<IdeaEmbeddingService> logger) : IIdeaEmbeddingService
     {
@@ -19,8 +21,10 @@ namespace ProblemCrawler.Pipeline.Services
         private readonly ILogger<IdeaEmbeddingService> _logger = logger;
         private readonly EmbeddingConfiguration _embeddingOptions = embeddingOptions.Value;
         private readonly OllamaHttpClient _ollamaHttpClient = ollamaHttpClient;
+        private readonly OllamaJobGate _ollamaJobGate = ollamaJobGate;
         public async Task<EmbeddingRunSummary> ExecuteAsync(CancellationToken cancellationToken)
         {
+            await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
             var evaluated = 0;
             var embedded = 0;
             var skipped = 0;
@@ -92,10 +96,7 @@ namespace ProblemCrawler.Pipeline.Services
 
         private static string BuildEmbedText(EmbeddingCandidate c)
         {
-            var parts = new List<string>
-            {
-                c.ProblemSummary
-            };
+            var parts = new List<string>();
 
             if (!string.IsNullOrWhiteSpace(c.ProblemSummary))
                 parts.Add($"Problem: {c.ProblemSummary}");

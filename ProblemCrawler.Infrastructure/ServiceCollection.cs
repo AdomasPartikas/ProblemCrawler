@@ -35,6 +35,7 @@ namespace ProblemCrawler.Infrastructure
                 cfg.AddProfile<ContentItemEntityMappingProfile>();
             });
             services.AddScoped<ICollectorItemRepository, CollectorItemRepository>();
+            services.AddScoped<IClusterRepository, ClusterRepository>();
             return services;
         }
     }

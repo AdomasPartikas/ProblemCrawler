@@ -28,6 +28,9 @@ public static class ApplicationBuilderExtensions
         var embeddingOptions = app.Services
             .GetRequiredService<IOptions<EmbeddingSchedulingConfiguration>>()
             .Value;
+        var clusteringOptions = app.Services
+            .GetRequiredService<IOptions<ClusteringSchedulingConfiguration>>()
+            .Value;
 
         if (collectorOptions.Enabled)
         {
@@ -111,6 +114,23 @@ public static class ApplicationBuilderExtensions
             if (embeddingOptions.RunOnStartup)
             {
                 BackgroundJob.Enqueue<IIdeaEmbeddingSchedulerTask>(static job => job.ExecuteAsync());
+            }
+        }
+
+        if (clusteringOptions.Enabled)
+        {
+            RecurringJob.AddOrUpdate<IClusteringSchedulerTask>(
+                recurringJobId: "clustering:run",
+                methodCall: static job => job.ExecuteAsync(),
+                cronExpression: clusteringOptions.CronExpression,
+                options: new RecurringJobOptions
+                {
+                    TimeZone = TimeZoneResolver.Resolve(clusteringOptions.TimeZoneId)
+                });
+
+            if (clusteringOptions.RunOnStartup)
+            {
+                BackgroundJob.Enqueue<IClusteringSchedulerTask>(static job => job.ExecuteAsync());
             }
         }
 

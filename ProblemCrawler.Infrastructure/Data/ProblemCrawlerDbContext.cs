@@ -19,6 +19,10 @@ namespace ProblemCrawler.Infrastructure.Data
         public DbSet<ThreadSynthesizedIdeaEntity> ThreadSynthesizedIdeas => Set<ThreadSynthesizedIdeaEntity>();
         public DbSet<ThreadSynthesizedIdeaEmbeddingEntity> ThreadSynthesizedIdeasEmbedding => Set<ThreadSynthesizedIdeaEmbeddingEntity>();
 
+        public DbSet<ClusterRunEntity> ClusterRuns => Set<ClusterRunEntity>();
+        public DbSet<ProblemClusterEntity> ProblemClusters => Set<ProblemClusterEntity>();
+        public DbSet<ProblemClusterArchiveEntity> ProblemClusterArchives => Set<ProblemClusterArchiveEntity>();
+        public DbSet<ThreadSynthesizedIdeaEmbeddingArchiveEntity> IdeaEmbeddingArchives => Set<ThreadSynthesizedIdeaEmbeddingArchiveEntity>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.HasPostgresExtension("vector");

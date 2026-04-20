@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -13,9 +14,11 @@ using ProblemCrawler.Infrastructure.Data;
 namespace ProblemCrawler.Infrastructure.Migrations
 {
     [DbContext(typeof(ProblemCrawlerDbContext))]
-    partial class ProblemCrawlerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410104524_AddClustering")]
+    partial class AddClustering
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -64,12 +67,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.Property<bool>("IsActionable")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsSynthesisInProgress")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsSynthesized")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Model")
                         .IsRequired()
                         .HasMaxLength(256)
@@ -94,9 +91,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
                     b.Property<bool>("SoftwareOpportunity")
                         .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("SynthesisClaimedAtUtc")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -134,11 +128,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsPinned")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
 
                     b.Property<int>("MinClusterSize")
                         .HasColumnType("integer");
@@ -203,38 +192,9 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.ToTable("CollectorItems");
                 });
 
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ProblemClusterArchiveEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<float>("AvgConfidence")
-                        .HasColumnType("real");
-
-                    b.Property<int>("ClusterId")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ClusterRunId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Size")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClusterRunId");
-
-                    b.ToTable("ProblemClusterArchive", (string)null);
-                });
-
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ProblemClusterEntity", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<float>("AvgConfidence")
@@ -243,27 +203,13 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.Property<int>("ClusterId")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("ClusterRunId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Label")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Opportunity")
-                        .HasColumnType("text");
 
                     b.Property<int>("Size")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ClusterRunId");
 
                     b.ToTable("ProblemCluster", (string)null);
                 });
@@ -307,48 +253,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.HasIndex("RootCollectorItemId");
 
                     b.ToTable("ThreadSynthesisRuns", (string)null);
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEmbeddingArchiveEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<float?>("ClusterConfidence")
-                        .HasColumnType("real");
-
-                    b.Property<int?>("ClusterId")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("ClusterRunId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Vector>("Embedding")
-                        .IsRequired()
-                        .HasColumnType("vector");
-
-                    b.Property<string>("IdeaSnapshot")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Model")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ThreadSynthesizedIdeaId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ClusterRunId");
-
-                    b.HasIndex("ThreadSynthesizedIdeaId");
-
-                    b.ToTable("ThreadSynthesizedIdeaEmbeddingArchive", (string)null);
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEmbeddingEntity", b =>
@@ -487,26 +391,13 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.Navigation("CollectorItem");
                 });
 
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ProblemClusterArchiveEntity", b =>
-                {
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", "ClusterRun")
-                        .WithMany()
-                        .HasForeignKey("ClusterRunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ClusterRun");
-                });
-
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ProblemClusterEntity", b =>
                 {
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", "ClusterRun")
-                        .WithMany("ProblemClusters")
-                        .HasForeignKey("ClusterRunId")
+                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", null)
+                        .WithMany()
+                        .HasForeignKey("Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("ClusterRun");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesisRunEntity", b =>
@@ -516,17 +407,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .HasForeignKey("RootCollectorItemId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEmbeddingArchiveEntity", b =>
-                {
-                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", "ClusterRun")
-                        .WithMany()
-                        .HasForeignKey("ClusterRunId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ClusterRun");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEmbeddingEntity", b =>
@@ -553,11 +433,6 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ThreadSynthesisRun");
-                });
-
-            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", b =>
-                {
-                    b.Navigation("ProblemClusters");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", b =>

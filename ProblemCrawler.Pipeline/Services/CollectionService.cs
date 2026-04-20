@@ -40,19 +40,30 @@ public class CollectionService(ICollector collector, ICollectorItemRepository re
 
         await foreach (var item in _collector.GatherAsync(cancellationToken))
         {
-            buffer.Add((CollectorItem)item);
-
-            responses.Add(new CollectedItemResponse(
-                item.SourceId,
-                item.ItemType,
-                item.Author,
-                item.CreatedAt,
-                item.SourceUrl));
-
-            if (buffer.Count >= DbConstants.batchSize)
+            try
             {
-                await _repository.InsertBatchAsync(buffer, cancellationToken);
-                buffer.Clear();
+                buffer.Add((CollectorItem)item);
+
+                responses.Add(new CollectedItemResponse(
+                    item.SourceId,
+                    item.ItemType,
+                    item.Author,
+                    item.CreatedAt,
+                    item.SourceUrl));
+
+                if (buffer.Count >= DbConstants.batchSize)
+                {
+                    await _repository.InsertBatchAsync(buffer, cancellationToken);
+                    buffer.Clear();
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to process collected item, skipping");
             }
         }
 

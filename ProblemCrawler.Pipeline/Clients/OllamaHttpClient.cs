@@ -16,13 +16,9 @@ public sealed class OllamaHttpClient(
     private readonly HttpClient _httpClient = httpClient;
     private readonly OllamaConfiguration _options = options.Value;
     private readonly ILogger<OllamaHttpClient> _logger = logger;
-    private static readonly SemaphoreSlim _gate = new(1, 1);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     public async Task<float[]?> EmbedAsync(string text, CancellationToken cancellationToken)
     {
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
             for (var attempt = 0; attempt < _options.MaxRetries; attempt++)
             {
                 try
@@ -82,18 +78,10 @@ public sealed class OllamaHttpClient(
 
             _logger.LogError("Ollama embed request failed after {MaxRetries} attempts.", _options.MaxRetries);
             return null;
-        }
-        finally
-        {
-            _gate.Release();
-        }
     }
 
     public async Task<string?> GenerateAsync(string prompt, CancellationToken cancellationToken)
-    {
-        await _gate.WaitAsync(cancellationToken);
-        try
-        {
+    {     
             for (var attempt = 0; attempt < _options.MaxRetries; attempt++)
             {
                 try
@@ -167,14 +155,6 @@ public sealed class OllamaHttpClient(
             }
             _logger.LogError("Ollama request failed after {MaxRetries} attempts.", _options.MaxRetries);
             return null;
-        }
-        finally
-        {
-            _gate.Release();
-        }
-
-
-
     }
     private sealed class OllamaEmbedResponse
     {

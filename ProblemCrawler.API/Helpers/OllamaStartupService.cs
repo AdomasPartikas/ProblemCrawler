@@ -21,7 +21,7 @@ namespace ProblemCrawler.API.Helpers
                     logger.LogInformation("[ollama] Started successfully");
                     return;
                 }
-                catch (Exception ex) when (attempt < OllamaStartupServiceConfiguration.MaxRetries)
+                catch (Exception ex) when (attempt < OllamaStartupServiceConfiguration.MaxRetries - 1)
                 {
                     logger.LogWarning(ex, "[ollama] Attempt {Attempt} failed retrying in {Delay}s", attempt, OllamaStartupServiceConfiguration.RetryDelay.TotalSeconds);
                     await Task.Delay(OllamaStartupServiceConfiguration.RetryDelay, cancellationToken);
@@ -33,9 +33,9 @@ namespace ProblemCrawler.API.Helpers
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-           
+
             await OllamaRunner.StopOllama(_activeGpu, logger, configuration, default);
-            
+
         }
     }
 }

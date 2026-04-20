@@ -16,6 +16,10 @@ namespace ProblemCrawler.Infrastructure.Configurations
 
             builder.HasIndex(e => new { e.ThreadSynthesizedIdeaId, e.Model })
                 .IsUnique();
+            builder.HasOne<ClusterRunEntity>()
+                .WithMany()
+                .HasForeignKey(e => e.ClusterRunId)
+                .IsRequired(false);
 
             builder.HasOne(e => e.Idea)
                 .WithOne(i => i.Embedding)

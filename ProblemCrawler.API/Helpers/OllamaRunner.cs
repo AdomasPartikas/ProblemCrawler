@@ -299,9 +299,8 @@ namespace ProblemCrawler.API.Helpers
 
             if (process.ExitCode != 0)
             {
-                logger.LogError("[ollama] Process exited with code {Code}", process.ExitCode);
-                throw new InvalidOperationException(
-                    $"Process '{fileName} {arguments}' exited with code {process.ExitCode}");
+                logger.LogError("[ollama] Process '{FileName}' exited with code {Code}", fileName, process.ExitCode);
+                return;
             }
             else
                 logger.LogDebug("[ollama] Process finished successfully");

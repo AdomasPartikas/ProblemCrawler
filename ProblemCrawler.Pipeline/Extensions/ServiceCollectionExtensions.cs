@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
+using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Core.Interfaces;
+using ProblemCrawler.Pipeline.Interfaces;
 using ProblemCrawler.Pipeline.Services;
 
 namespace ProblemCrawler.Pipeline.Extensions;
@@ -53,5 +55,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIdeaEmbeddingService, IdeaEmbeddingService>();
         return services;
     }
+    /// <summary>
+    /// Registers the clustering pipeline service.
+    /// </summary>
+    public static IServiceCollection AddClusteringPipeline(this IServiceCollection services)
+    {
+        services.AddSingleton<IClusteringSchedulerTask, ClusteringSchedulerTask>();
+        services.AddScoped<IClusterJobRunner, ClusterJobRunner>();
+        return services;
+    }
+
 
 }

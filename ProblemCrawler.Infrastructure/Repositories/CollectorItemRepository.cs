@@ -197,7 +197,9 @@ namespace ProblemCrawler.Infrastructure.Repositories
             var existing = await _context.AnalysedItems
                 .SingleOrDefaultAsync(x => x.CollectorItemId == analysis.CollectorItemId, cancellationToken);
 
-            if (existing is null)
+            var isNew = existing is null;
+
+            if (isNew)
             {
                 existing = new AnalysedItemEntity
                 {
@@ -228,20 +230,60 @@ namespace ProblemCrawler.Infrastructure.Repositories
             existing.UpdatedAtUtc = analysis.AnalyzedAtUtc;
             existing.RootCollectorItemId = rootCollectorItemId;
 
+            if (!isNew)
+            {
+                existing.IsSynthesized = false;
+                existing.IsSynthesisInProgress = false;
+                existing.SynthesisClaimedAtUtc = null;
+            }
+
             item.AnalysisStage = AnalysisStages.Analysed;
 
             await _context.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyList<ThreadSynthesisCandidate>> GetThreadSynthesisCandidatesAsync(
-            int batchSize,
-            CancellationToken cancellationToken)
+             int batchSize,
+             CancellationToken cancellationToken)
         {
             var effectiveBatchSize = batchSize <= 0 ? 100 : batchSize;
+            var stuckThreshold = DateTime.UtcNow.AddMinutes(-15);
+
+            var claimableIds = await _context.AnalysedItems
+                .Where(item =>
+                    item.ContainsProblem &&
+                    item.SoftwareOpportunity &&
+                    item.IsActionable &&
+                    !item.IsSynthesized &&
+                    (!item.IsSynthesisInProgress || item.SynthesisClaimedAtUtc < stuckThreshold))
+                .Select(item => item.RootCollectorItemId)
+                .Distinct()
+                .Take(effectiveBatchSize)
+                .ToListAsync(cancellationToken);
+
+            if (claimableIds.Count == 0)
+            {
+                return [];
+            }
+
+            await _context.AnalysedItems
+                .Where(item =>
+                    claimableIds.Contains(item.RootCollectorItemId) &&
+                    item.ContainsProblem &&
+                    item.SoftwareOpportunity &&
+                    item.IsActionable &&
+                    !item.IsSynthesized &&
+                    (!item.IsSynthesisInProgress || item.SynthesisClaimedAtUtc < stuckThreshold))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.IsSynthesisInProgress, true)
+                    .SetProperty(a => a.SynthesisClaimedAtUtc, DateTime.UtcNow),
+                    cancellationToken);
 
             var rawJoined = await _context.AnalysedItems
                 .AsNoTracking()
                 .Where(item =>
+                    claimableIds.Contains(item.RootCollectorItemId) &&
+                    item.IsSynthesisInProgress &&
                     item.ContainsProblem &&
                     item.SoftwareOpportunity &&
                     item.IsActionable)
@@ -258,7 +300,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     })
                 .ToListAsync(cancellationToken);
 
-            var aggregates = rawJoined
+            return rawJoined
                 .GroupBy(x => x.RootCollectorItemId)
                 .Select(group => new ThreadSynthesisCandidate(
                     group.Key,
@@ -266,46 +308,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     group.Count(),
                     group.Max(x => x.CreatedAt),
                     group.Max(x => x.UpdatedAtUtc)))
-                .OrderBy(candidate => candidate.LatestAnalysedItemUpdatedAtUtc)
                 .ToList();
-
-            if (aggregates.Count == 0)
-            {
-                return [];
-            }
-
-            var rootCollectorItemIds = aggregates
-                .Select(x => x.RootCollectorItemId)
-                .Distinct()
-                .ToArray();
-
-            var existingRuns = await _context.ThreadSynthesisRuns
-                .AsNoTracking()
-                .Where(run => rootCollectorItemIds.Contains(run.RootCollectorItemId))
-                .OrderByDescending(run => run.AnalyzedAtUtc)
-                .ToListAsync(cancellationToken);
-
-            var latestRunByRootCollectorItemId = existingRuns
-                .GroupBy(run => run.RootCollectorItemId)
-                .ToDictionary(group => group.Key, group => group.First());
-
-            var staleCandidates = aggregates
-                .Where(candidate =>
-                {
-                    if (!latestRunByRootCollectorItemId.TryGetValue(candidate.RootCollectorItemId, out var latestRun))
-                    {
-                        return true;
-                    }
-
-                    return latestRun.ThreadItemCount != candidate.ThreadItemCount ||
-                           latestRun.AnalysedItemCount != candidate.AnalysedItemCount ||
-                           latestRun.LatestCollectorItemCreatedAtUtc < candidate.LatestCollectorItemCreatedAtUtc ||
-                           latestRun.LatestAnalysedItemUpdatedAtUtc < candidate.LatestAnalysedItemUpdatedAtUtc;
-                })
-                .Take(effectiveBatchSize)
-                .ToList();
-
-            return staleCandidates;
         }
 
         public async Task<ThreadSynthesisContext?> GetThreadSynthesisContextAsync(
@@ -446,27 +449,50 @@ namespace ProblemCrawler.Infrastructure.Repositories
             ThreadSynthesisUpsert synthesis,
             CancellationToken cancellationToken)
         {
-            var run = new ThreadSynthesisRunEntity
-            {
-                Id = Guid.NewGuid(),
-                RootCollectorItemId = synthesis.RootCollectorItemId,
-                ThreadItemCount = synthesis.ThreadItemCount,
-                AnalysedItemCount = synthesis.AnalysedItemCount,
-                LatestCollectorItemCreatedAtUtc = synthesis.LatestCollectorItemCreatedAtUtc,
-                LatestAnalysedItemUpdatedAtUtc = synthesis.LatestAnalysedItemUpdatedAtUtc,
-                Model = synthesis.Model,
-                AnalyzedAtUtc = synthesis.AnalyzedAtUtc,
-                UpdatedAtUtc = synthesis.AnalyzedAtUtc
-            };
+            var existingRun = await _context.ThreadSynthesisRuns
+                .Include(r => r.Ideas)
+                .SingleOrDefaultAsync(r =>
+                    r.RootCollectorItemId == synthesis.RootCollectorItemId,
+                    cancellationToken);
 
-            _context.ThreadSynthesisRuns.Add(run);
+            if (existingRun is not null)
+            {
+                existingRun.ThreadItemCount = synthesis.ThreadItemCount;
+                existingRun.AnalysedItemCount = synthesis.AnalysedItemCount;
+                existingRun.LatestCollectorItemCreatedAtUtc = synthesis.LatestCollectorItemCreatedAtUtc;
+                existingRun.LatestAnalysedItemUpdatedAtUtc = synthesis.LatestAnalysedItemUpdatedAtUtc;
+                existingRun.Model = synthesis.Model;
+                existingRun.AnalyzedAtUtc = synthesis.AnalyzedAtUtc;
+                existingRun.UpdatedAtUtc = synthesis.AnalyzedAtUtc;
+
+                _context.ThreadSynthesizedIdeas.RemoveRange(existingRun.Ideas);
+            }
+            else
+            {
+                existingRun = new ThreadSynthesisRunEntity
+                {
+                    Id = Guid.NewGuid(),
+                    RootCollectorItemId = synthesis.RootCollectorItemId,
+                    AnalyzedAtUtc = synthesis.AnalyzedAtUtc,
+                };
+
+                _context.ThreadSynthesisRuns.Add(existingRun);
+            }
+
+            existingRun.ThreadItemCount = synthesis.ThreadItemCount;
+            existingRun.AnalysedItemCount = synthesis.AnalysedItemCount;
+            existingRun.LatestCollectorItemCreatedAtUtc = synthesis.LatestCollectorItemCreatedAtUtc;
+            existingRun.LatestAnalysedItemUpdatedAtUtc = synthesis.LatestAnalysedItemUpdatedAtUtc;
+            existingRun.Model = synthesis.Model;
+            existingRun.AnalyzedAtUtc = synthesis.AnalyzedAtUtc;
+            existingRun.UpdatedAtUtc = synthesis.AnalyzedAtUtc;
 
             foreach (var idea in synthesis.Ideas)
             {
                 _context.ThreadSynthesizedIdeas.Add(new ThreadSynthesizedIdeaEntity
                 {
                     Id = Guid.NewGuid(),
-                    ThreadSynthesisRunId = run.Id,
+                    ThreadSynthesisRunId = existingRun.Id,
                     ProblemSummary = idea.ProblemSummary,
                     ProblemDetails = idea.ProblemDetails,
                     Actor = idea.Actor,
@@ -484,6 +510,18 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     UpdatedAtUtc = synthesis.AnalyzedAtUtc
                 });
             }
+
+            await _context.AnalysedItems
+                .Where(a =>
+                    a.RootCollectorItemId == synthesis.RootCollectorItemId &&
+                    a.ContainsProblem &&
+                    a.SoftwareOpportunity &&
+                    a.IsActionable)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.IsSynthesized, true)
+                    .SetProperty(a => a.IsSynthesisInProgress, false)
+                    .SetProperty(a => a.SynthesisClaimedAtUtc, (DateTime?)null),
+                    cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -634,6 +672,15 @@ namespace ProblemCrawler.Infrastructure.Repositories
             }
 
             return null;
+        }
+        public async Task ReleaseSynthesisClaimAsync(Guid rootCollectorItemId, CancellationToken cancellationToken)
+        {
+            await _context.AnalysedItems
+                .Where(a => a.RootCollectorItemId == rootCollectorItemId)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(a => a.IsSynthesisInProgress, false)
+                    .SetProperty(a => a.SynthesisClaimedAtUtc, (DateTime?)null),
+                    cancellationToken);
         }
     }
 }
