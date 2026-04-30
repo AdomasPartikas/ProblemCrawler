@@ -104,9 +104,15 @@ public sealed class ThreadSynthesisService(
                 }
 
                 var initialPrompt = LLMAnalysisPromptBuilder.BuildThreadSynthesisPrompt(context);
+
+                var estimatedTokens = (int)(initialPrompt.Length / 3.5);
+                _logger.LogInformation("[synthesis] Estimated prompt tokens: {Tokens}", estimatedTokens);
+
                 var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, cancellationToken);
                 if (string.IsNullOrWhiteSpace(modelOutput))
                 {
+                    _logger.LogWarning("[synthesis] Attempt {Attempt} returned empty response for {RootId}",
+                    attempt, rootCollectorItemId);
                     continue;
                 }
 
@@ -122,7 +128,7 @@ public sealed class ThreadSynthesisService(
                         "Thread synthesis succeeded.",
                         result!.Count);
                 }
-
+                _logger.LogWarning("[synthesis] Parse failed for {RootId} — {Error}", rootCollectorItemId, validationError);
                 var repaired = await TryRepairResponseAsync(
                     initialPrompt,
                     normalizedOutput,
@@ -169,6 +175,9 @@ public sealed class ThreadSynthesisService(
 
         for (var repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++)
         {
+            _logger.LogWarning(
+                "[synthesis] Repair attempt {RepairAttempt}/{Max} — reason: {Error}",
+                repairAttempt, maxRepairAttempts, error);
             var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
             var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
             if (string.IsNullOrWhiteSpace(repairedResponse))
