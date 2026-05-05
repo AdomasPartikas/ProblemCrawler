@@ -179,6 +179,8 @@ public sealed class ThreadSynthesisService(
                 "[synthesis] Repair attempt {RepairAttempt}/{Max} — reason: {Error}",
                 repairAttempt, maxRepairAttempts, error);
             var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
+            var estimatedRepairTokens = (int)(repairPrompt.Length / 3.5);
+            _logger.LogDebug("[synthesis] Estimated repair prompt tokens: {Tokens}", estimatedRepairTokens);
             var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
             if (string.IsNullOrWhiteSpace(repairedResponse))
             {

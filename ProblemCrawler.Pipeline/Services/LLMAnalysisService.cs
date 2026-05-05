@@ -119,6 +119,8 @@ public sealed class LLMAnalysisService(
                 }
 
                 var initialPrompt = LLMAnalysisPromptBuilder.BuildInitialPrompt(context);
+                var estimatedTokens = (int)(initialPrompt.Length / 3.5);
+                _logger.LogDebug("[Analysis] Estimated prompt tokens: {Tokens}", estimatedTokens);
                 var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, cancellationToken);
                 if (string.IsNullOrWhiteSpace(modelOutput))
                 {
@@ -166,6 +168,10 @@ public sealed class LLMAnalysisService(
         for (var repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++)
         {
             var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
+
+            var estimatedRepairTokens = (int)(repairPrompt.Length / 3.5);
+            _logger.LogDebug("[Analysis] Estimated prompt tokens: {Tokens}", estimatedRepairTokens);
+
             var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
             if (string.IsNullOrWhiteSpace(repairedResponse))
             {

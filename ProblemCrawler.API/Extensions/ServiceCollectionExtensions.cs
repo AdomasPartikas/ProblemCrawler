@@ -44,8 +44,15 @@ public static class ServiceCollectionExtensions
 
         services.Configure<EmbeddingConfiguration>(
             configuration.GetSection("Embedding:Settings"));
+
         services.Configure<ClusteringSchedulingConfiguration>(
             configuration.GetSection("Clustering:Scheduling"));
+
+        services.Configure<OllamaServiceConfiguration>(
+             configuration.GetSection("Wsl:Service"));
+
+        services.Configure<OllamaRocmConfiguration>(
+            configuration.GetSection("Wsl:Rocm"));
 
         services.AddSingleton<IClusteringSchedulerTask, ClusteringSchedulerTask>();
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();

@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using ProblemCrawler.Core.Configuration;
+using System.Reflection;
+using static ProblemCrawler.Core.Configuration.OllamaServiceConfiguration;
 
 namespace ProblemCrawler.Core.Scripts;
 
@@ -19,13 +21,13 @@ public static class OllamaScriptSections
     /// <param name="password">The sudo password used to execute privileged commands.</param>
     /// <param name="port">The port number Ollama listens on, used to free any bound processes.</param>
     /// <returns>Shell script lines that stop the systemd service, kill stray processes, and free the port.</returns>
-    public static IEnumerable<string> StopExistingInstances(string password, int port) =>
+    public static IEnumerable<string> StopExistingInstances(string password, OllamaServiceConfiguration svc) =>
     [
         "echo '[ollama] Stopping any existing ollama instances...'",
         Sudo(password, $"systemctl stop ollama 2>/dev/null || true"),
         Sudo(password, $"systemctl disable ollama 2>/dev/null || true"),
         Sudo(password, $"killall -9 ollama 2>/dev/null || true"),
-        Sudo(password, $"fuser -k {port}/tcp 2>/dev/null || true"),
+        Sudo(password, $"fuser -k {svc.Port}/tcp 2>/dev/null || true"),
         "sleep 3"
     ];
     /// <summary>
@@ -59,13 +61,13 @@ public static class OllamaScriptSections
     /// </remarks>
     /// <param name="password">The sudo password used to execute privileged commands.</param>
     /// <returns>Shell script lines that install the ROCm stack and verify GPU visibility via rocminfo.</returns>
-    public static IEnumerable<string> RocmSetup(string password) =>
+    public static IEnumerable<string> RocmSetup(string password, OllamaRocmConfiguration rocm) =>
     [
         "echo '[ollama] Checking ROCm installation...'",
 
         "if ! command -v amdgpu-install >/dev/null 2>&1; then",
-        "  echo '[ollama] Installing amdgpu-install for ROCm 7.2...'",
-        $"  {Sudo(password, "bash -c 'wget -q https://repo.radeon.com/amdgpu-install/7.2/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb -O /tmp/amdgpu-install.deb && apt-get install -y /tmp/amdgpu-install.deb'")}",
+        $"  echo '[ollama] Installing amdgpu-install for ROCm {rocm.Version}...'",
+        $"  {Sudo(password, $"bash -c 'wget -q {rocm.InstallerDebUrl} -O /tmp/amdgpu-install.deb && apt-get install -y /tmp/amdgpu-install.deb'")}",
         "else",
         "  echo '[ollama] amdgpu-install already present, skipping download.'",
         "fi",
@@ -91,24 +93,25 @@ public static class OllamaScriptSections
         "echo \"[ollama] Detected GFX target: $GFX_TARGET\"",
 
         "if [ -n \"$GFX_TARGET\" ]; then",
-        "  echo \"[ollama] Copying rocblas kernels for $GFX_TARGET from system ROCm into Ollama...\"",
-        $"  {Sudo(password, "bash -c 'find /opt/rocm/lib/rocblas/library/ -name \"*${GFX_TARGET}*\" -exec cp {} /usr/lib/ollama/rocm/rocblas/library/ \\;'")}",
+        $"  echo \"[ollama] Copying rocblas kernels for $GFX_TARGET from system ROCm into Ollama...\"",
+        $"  {Sudo(password, $"bash -c 'find {rocm.RocmLibPath}/rocblas/library/ -name \"*${{GFX_TARGET}}*\" -exec cp {{}} /usr/lib/ollama/rocm/rocblas/library/ \\;'")}",
         "  ls /usr/lib/ollama/rocm/rocblas/library/ | grep \"$GFX_TARGET\" || echo \"[ollama] WARNING: no kernels found for $GFX_TARGET\"",
         "else",
         "  echo '[ollama] WARNING: could not detect GFX target, skipping kernel copy'",
         "fi",
 
         "echo '[ollama] Replacing Ollama bundled HSA runtime with WSL-aware system version...'",
-        "HSA_SRC=$(find /opt/rocm-7.2.0/lib/ -name 'libhsa-runtime64.so.1.*' ! -type l | head -1)",
+        $"HSA_SRC=$(find {rocm.RocmLibPath}/ -name 'libhsa-runtime64.so.1.*' ! -type l | head -1)",
         "HSA_DST=$(find /usr/lib/ollama/rocm/ -name 'libhsa-runtime64.so.1.*' ! -type l | head -1)",
         "echo \"[ollama] Copying $HSA_SRC -> $HSA_DST\"",
-        $"{Sudo(password, "bash -c 'HSA_SRC=$(find /opt/rocm-7.2.0/lib/ -name libhsa-runtime64.so.1.* ! -type l | head -1) && HSA_DST=$(find /usr/lib/ollama/rocm/ -name libhsa-runtime64.so.1.* ! -type l | head -1) && cp $HSA_SRC $HSA_DST'")}",
+        $"{Sudo(password, $"bash -c 'HSA_SRC=$(find {rocm.RocmLibPath}/ -name libhsa-runtime64.so.1.* ! -type l | head -1) && HSA_DST=$(find /usr/lib/ollama/rocm/ -name libhsa-runtime64.so.1.* ! -type l | head -1) && cp $HSA_SRC $HSA_DST'")}",
         $"{Sudo(password, "ldconfig")}",
         "ldd /usr/lib/ollama/rocm/libhsa-runtime64.so.1 | grep -i dxcore || echo 'WARNING: dxcore not linked'",
         "else",
         "echo '[ollama] ROCm GPU not detected — will fall back to Vulkan'",
         "fi"
     ];
+
     /// <summary>
     /// Generates shell script lines that start Ollama using native ROCm (no Vulkan).
     /// Should only be called when ROCm GPU detection succeeded.
@@ -116,22 +119,23 @@ public static class OllamaScriptSections
     /// <param name="ollamaPath">The file system path to the Ollama binary.</param>
     /// <param name="logPath">The file path where Ollama server output will be written.</param>
     /// <returns>Shell script lines that set ROCm env vars and launch Ollama via nohup.</returns>
-    public static IEnumerable<string> ServeWithRocmEnvVars(string ollamaPath, string logPath, int contextSize) =>
+    public static IEnumerable<string> ServeWithRocmEnvVars(
+        string ollamaPath, OllamaServiceConfiguration svc, OllamaRocmConfiguration rocm,OllamaRuntimeConfiguration runtime, int contextSize) =>
     [
         "echo '[ollama] Starting ollama serve with ROCm env vars...'",
         "unset OLLAMA_VULKAN",
         "export OLLAMA_LLM_LIBRARY=rocm",
-        "export OLLAMA_FLASH_ATTENTION=true",
+        $"export OLLAMA_FLASH_ATTENTION={runtime.FlashAttention.ToString().ToLower()}",
         $"export OLLAMA_CONTEXT_LENGTH={contextSize}",
-        "export OLLAMA_KV_CACHE_TYPE=q8_0",
-        "export OLLAMA_NUM_PARALLEL=1",
-        "export OLLAMA_LIBRARY_PATH=/usr/lib/ollama:/usr/lib/ollama/rocm",
-        "export LD_LIBRARY_PATH=/usr/lib/ollama:/usr/lib/ollama/rocm:/opt/rocm-7.2.0/lib:${LD_LIBRARY_PATH}",
-        "export ROCBLAS_TENSILE_LIBPATH=/usr/lib/ollama/rocm/rocblas/library",
+        $"export OLLAMA_KV_CACHE_TYPE={runtime.KvCacheType}",
+        $"export OLLAMA_NUM_PARALLEL={runtime.NumParallel}",
+        $"export OLLAMA_LIBRARY_PATH={svc.OllamaLibraryPath}",
+        $"export LD_LIBRARY_PATH={svc.OllamaLibraryPath}:{rocm.RocmLibPath}:${{LD_LIBRARY_PATH}}",
+        $"export ROCBLAS_TENSILE_LIBPATH={svc.RocblasTensilePath}",
         "export HSA_ENABLE_ROCDXG=1",
         "echo '[ollama] Verifying libggml-hip dependencies...'",
         "ldd /usr/lib/ollama/rocm/libggml-hip.so | grep -E 'not found|ggml|hip|roc|hsa|blas' || true",
-        $"nohup {ollamaPath} serve > {logPath} 2>&1 &"
+        $"nohup {ollamaPath} serve > {svc.LogPath} 2>&1 &"
     ];
     /// <summary>
     /// Generates shell script lines that install and configure Mesa Vulkan drivers inside WSL.
@@ -180,13 +184,13 @@ public static class OllamaScriptSections
     /// <param name="password">The sudo password used to execute privileged stop commands.</param>
     /// <param name="port">The port number to free before restarting the service.</param>
     /// <returns>Shell script lines that stop the installer-managed service and free the port.</returns>
-    public static IEnumerable<string> StopInstallerService(string password, int port) =>
+    public static IEnumerable<string> StopInstallerService(string password, OllamaServiceConfiguration svc) =>
     [
         "echo '[ollama] Stopping installer-started ollama service...'",
         Sudo(password, $"systemctl stop ollama 2>/dev/null || true"),
         Sudo(password, $"systemctl disable ollama 2>/dev/null || true"),
         Sudo(password, $"killall -9 ollama 2>/dev/null || true"),
-        Sudo(password, $"fuser -k {port}/tcp 2>/dev/null || true"),
+        Sudo(password, $"fuser -k {svc.Port}/tcp 2>/dev/null || true"),
         "sleep 2"
     ];
     /// <summary>
@@ -195,16 +199,17 @@ public static class OllamaScriptSections
     /// <param name="ollamaPath">The file system path to the Ollama binary.</param>
     /// <param name="logPath">The file path where Ollama server output will be written.</param>
     /// <returns>Shell script lines that set GPU environment variables and launch the Ollama server via nohup.</returns>
-    public static IEnumerable<string> ServeWithGpuEnvVars(string ollamaPath, string logPath, int contextSize) =>
+    public static IEnumerable<string> ServeWithGpuEnvVars(
+        string ollamaPath, OllamaServiceConfiguration svc,OllamaRuntimeConfiguration runtime, int contextSize) =>
     [
         "echo '[ollama] Starting ollama serve with GPU env vars...'",
         "unset OLLAMA_LLM_LIBRARY",
         "export OLLAMA_VULKAN=1",
-        "export OLLAMA_FLASH_ATTENTION=true",
-        "export OLLAMA_KV_CACHE_TYPE=q8_0",
+        $"export OLLAMA_FLASH_ATTENTION={runtime.FlashAttention.ToString().ToLower()}",
+        $"export OLLAMA_KV_CACHE_TYPE={runtime.KvCacheType}",
         $"export OLLAMA_CONTEXT_LENGTH={contextSize}",
-        "export OLLAMA_NUM_PARALLEL=1",
-        $"nohup {ollamaPath} serve > {logPath} 2>&1 &"
+        $"export OLLAMA_NUM_PARALLEL={runtime.NumParallel}",
+        $"nohup {ollamaPath} serve > {svc.LogPath} 2>&1 &"
     ];
     /// <summary>
     /// Generates shell script lines that poll the Ollama API until it becomes reachable.
@@ -212,12 +217,31 @@ public static class OllamaScriptSections
     /// <param name="baseUrl">The base URL of the Ollama server.</param>
     /// <param name="tagsPath">The API path to poll for readiness (e.g. <c>/api/tags</c>).</param>
     /// <returns>Shell script lines that loop with a 2-second delay until the API responds successfully.</returns>
-    public static IEnumerable<string> WaitForApi(string baseUrl, string tagsPath) =>
+    public static IEnumerable<string> WaitForApi(
+        string baseUrl, OllamaServiceConfiguration svc) =>
     [
         "echo '[ollama] Waiting for API...'",
-        $"until curl -s {baseUrl}{tagsPath} > /dev/null 2>&1; do sleep 2; done",
-        "echo '[ollama] API is ready.'"
+        "READY=0",
+        "for i in {1..60}; do",
+        $"  if curl -fsS {baseUrl}{svc.TagsPath} >/dev/null 2>&1; then",
+        "    echo '[ollama] API is ready.'",
+        "    READY=1",
+        "    break",
+        "  fi",
+        "  if ! pgrep -x ollama >/dev/null; then",
+        "    echo '[ollama] ERROR: ollama process is not running'",
+        $"    cat {svc.LogPath} || true",
+        "    exit 1",
+        "  fi",
+        "  sleep 2",
+        "done",
+        "if [ \"$READY\" != \"1\" ]; then",
+        "  echo '[ollama] ERROR: API did not become ready in 120s'",
+        $"  cat {svc.LogPath} || true",
+        "  exit 1",
+        "fi"
     ];
+
     /// <summary>
     /// Generates shell script lines to check for and pull specified Ollama models using the provided Ollama executable
     /// path.
@@ -232,7 +256,7 @@ public static class OllamaScriptSections
     public static IEnumerable<string> PullModels(string ollamaPath, IEnumerable<string> models) =>
         models.SelectMany(model => new[]
         {
-            $"if ollama list | grep -q '^{model}'; then",
+            $"if ollama list | grep -qP '^{model}\\s'; then",
             $"  echo '[ollama] Model {model} already present, skipping.'",
             $"else",
             $"  echo '[ollama] Pulling {model}...'",
