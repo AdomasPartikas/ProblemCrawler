@@ -1,8 +1,11 @@
 using Hangfire;
 using Hangfire.InMemory;
 using Microsoft.Extensions.Options;
+using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Clients;
+using ProblemCrawler.Pipeline.Helper;
 using ProblemCrawler.Pipeline.Interfaces;
 using ProblemCrawler.Pipeline.Services;
 
@@ -36,11 +39,29 @@ public static class ServiceCollectionExtensions
         services.Configure<OllamaConfiguration>(
             configuration.GetSection("LLMAnalysis:Ollama"));
 
+        services.Configure<EmbeddingSchedulingConfiguration>(
+             configuration.GetSection("Embedding:Scheduling"));
+
+        services.Configure<EmbeddingConfiguration>(
+            configuration.GetSection("Embedding:Settings"));
+
+        services.Configure<ClusteringSchedulingConfiguration>(
+            configuration.GetSection("Clustering:Scheduling"));
+
+        services.Configure<OllamaServiceConfiguration>(
+             configuration.GetSection("Wsl:Service"));
+
+        services.Configure<OllamaRocmConfiguration>(
+            configuration.GetSection("Wsl:Rocm"));
+
+        services.AddSingleton<IClusteringSchedulerTask, ClusteringSchedulerTask>();
         services.AddSingleton<ICollectorSchedulerTask, CollectorSchedulerTask>();
         services.AddSingleton<IFilteringSchedulerTask, FilteringSchedulerTask>();
         services.AddSingleton<ILLMAnalysisSchedulerTask, LLMAnalysisSchedulerTask>();
         services.AddSingleton<IThreadSynthesisSchedulerTask, ThreadSynthesisSchedulerTask>();
-
+        services.AddSingleton<IIdeaEmbeddingSchedulerTask, IdeaEmbeddingSchedulerTask>();
+        services.AddSingleton<IClusterJobRunner, ClusterJobRunner>();
+        services.AddSingleton<OllamaJobGate>();
         services.AddHttpClient<OllamaHttpClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<OllamaConfiguration>>().Value;

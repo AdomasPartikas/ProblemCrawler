@@ -1,4 +1,6 @@
 ﻿using ProblemCrawler.Core.Models;
+using ProblemCrawler.Core.Records.Clustering;
+using ProblemCrawler.Core.Records.Embedding;
 using ProblemCrawler.Core.Records.Filtering;
 using ProblemCrawler.Core.Records.LLM;
 
@@ -16,5 +18,8 @@ public interface ICollectorItemRepository
     Task<IReadOnlyList<ThreadSynthesisCandidate>> GetThreadSynthesisCandidatesAsync(int batchSize, CancellationToken cancellationToken);
     Task<ThreadSynthesisContext?> GetThreadSynthesisContextAsync(Guid rootCollectorItemId, CancellationToken cancellationToken);
     Task UpsertThreadSynthesisAsync(ThreadSynthesisUpsert synthesis, CancellationToken cancellationToken);
+    Task<IReadOnlyList<EmbeddingCandidate>> GetEmbeddingCandidatesAsync(int batchSize, string model, CancellationToken cancellationToken);
+    Task UpsertEmbeddingAsync(IReadOnlyList<EmbeddingUpsert> upserts, CancellationToken cancellationToken);
+    Task ReleaseSynthesisClaimAsync(Guid rootCollectorItemId, CancellationToken cancellationToken);
 }
 

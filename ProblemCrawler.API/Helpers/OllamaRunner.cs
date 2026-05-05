@@ -1,20 +1,15 @@
-﻿using ProblemCrawler.Core.Enums;
+﻿using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Core.Enums;
+using ProblemCrawler.Core.Scripts;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using ProblemCrawler.Core.Configuration;
-using ProblemCrawler.Core.Scripts;
 
 namespace ProblemCrawler.API.Helpers
 {
     public static class OllamaRunner
-    {
-        private const string OllamaApiTagsPath = "/api/tags";
-        private const string OllamaApiPsPath = "/api/ps";
-        private const string OllamaApiGenPath = "/api/generate";
-        private const int OllamaPort = 11434;
-        private const string OllamaLogPath = "/tmp/ollama.log";
+    {   
         private static readonly Regex AnsiEscapePattern =
         new(@"\x1B\[[^@-~]*[@-~]|[^\x20-\x7E\n]", RegexOptions.Compiled);
 
@@ -22,7 +17,7 @@ namespace ProblemCrawler.API.Helpers
         /// Initializes and starts the Ollama service using the specified GPU vendor, logging, and configuration
         /// settings.
         /// </summary>
-        /// <remarks>Due to Ollama support for AMD GPUs and wsl rocm limitations, the method configures and starts Ollama within a WSL environment,
+        /// <remarks>AMD/unknown: tries ROCm (WSL2 + ROCDXG) first, falls back to Vulkan if GPU is not active. The method configures and starts Ollama within a WSL environment,
         /// including Vulkan setup and model pulling. For other GPU vendors, it uses Docker Compose to build and start
         /// the service. The method logs progress and errors throughout the process.</remarks>
         /// <param name="gpu">The GPU vendor to use for running Ollama. Determines whether to use AMD-specific setup or a Docker-based
@@ -62,20 +57,54 @@ namespace ProblemCrawler.API.Helpers
         CancellationToken cancellationToken)
         {
             var settings = OllamaWslConfiguration.FromConfiguration(configuration);
+            var svc = OllamaServiceConfiguration.FromConfiguration(configuration);
+            var rocm = OllamaRocmConfiguration.FromConfiguration(configuration);
+            var runtime = OllamaRuntimeConfiguration.FromConfiguration(configuration);
+            var vramBytes = GpuInfo.GetVramBytes(logger);
+            var contextSize = GpuInfo.GetOptimalContextSize(vramBytes);
+            logger.LogInformation("[GpuInfo] ContextSize = {contextSize}", contextSize);
+            logger.LogInformation("[ollama] Attempting ROCm startup");
+            var rocmScriptPath = await WriteBashScript(settings, svc, rocm,runtime, useVulkanFallback: false, contextSize, cancellationToken);
+            var wslRocmPath = ToWslPath(rocmScriptPath);
 
-            var scriptPath = await WriteBashScript(settings, cancellationToken);
-            var wslScriptPath = ToWslPath(scriptPath);
-
-            await RunProcess("wsl.exe", $"-e bash {wslScriptPath}", workingDirectory: null, logger, cancellationToken);
-            await RunProcess("wsl.exe", $"-e bash -c \"cat {OllamaLogPath}\"", workingDirectory: null, logger, cancellationToken);
-
+            await RunProcess("wsl.exe", $"-e bash {wslRocmPath}", workingDirectory: null, logger, cancellationToken);
+            await RunProcess("wsl.exe", $"-e bash -c \"cat {svc.LogPath}\"", workingDirectory: null, logger, cancellationToken);
+            bool gpuActive = false;
             try
             {
-                await VerifyOllama(settings.BaseUrl, settings.Models.First(), logger, cancellationToken);
+                gpuActive = await VerifyOllama(settings.BaseUrl, settings.Models.First(), svc, logger, cancellationToken);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "[ollama] Verification failed after startup");
+                logger.LogError(ex, "[ollama] ROcm Verification failed");
+            }
+            if (gpuActive)
+            {
+                logger.LogInformation("[ollama] ROCm startup succeeded - GPU is active.");
+                return;
+            }
+            else
+            {
+                logger.LogWarning("[ollama] ROCm did not activate GPU. Falling back to Vulkan");
+
+                var stopLines = OllamaScriptSections.StopExistingInstances(settings.Password, svc);
+                var stopScript = string.Join('\n', stopLines);
+                await RunProcess("wsl.exe", $"-e bash -c \"{EscapeForBashArg(stopScript)}\"", workingDirectory: null, logger, cancellationToken);
+
+                var vulkanScriptPath = await WriteBashScript(settings, svc, rocm, runtime, useVulkanFallback: true, contextSize, cancellationToken);
+                var wslVulkanPath = ToWslPath(vulkanScriptPath);
+
+                await RunProcess("wsl.exe", $"-e bash {wslVulkanPath}", workingDirectory: null, logger, cancellationToken);
+                await RunProcess("wsl.exe", $"-e bash -c \"cat {svc.LogPath}\"", workingDirectory: null, logger, cancellationToken);
+
+                try
+                {
+                    await VerifyOllama(settings.BaseUrl, settings.Models.First(), svc, logger, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[ollama] Vulkan fallback verification also failed");
+                }
             }
         }
         /// <summary>
@@ -98,8 +127,9 @@ namespace ProblemCrawler.API.Helpers
             if (gpu == GpuVendor.amd || gpu == GpuVendor.unknown)
             {
                 var settings = OllamaWslConfiguration.FromConfiguration(configuration);
-                var StopScript = string.Join('\n', OllamaScriptSections.StopExistingInstances(settings.Password, OllamaPort));
-                await RunProcess("wsl.exe", $"-e bash -c \"{StopScript}\"", workingDirectory: null, logger, cancellationToken);
+                var svc = OllamaServiceConfiguration.FromConfiguration(configuration);
+                var stopScript = string.Join('\n', OllamaScriptSections.StopExistingInstances(settings.Password, svc));
+                await RunProcess("wsl.exe", $"-e bash -c \"{EscapeForBashArg(stopScript)}\"", workingDirectory: null, logger, cancellationToken);
             }
             if (gpu == GpuVendor.nvidia)
             {
@@ -118,24 +148,57 @@ namespace ProblemCrawler.API.Helpers
         /// <param name="s">The configuration used to generate the contents of the Bash script.</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
         /// <returns>A string containing the full path to the generated Bash script file.</returns>
-        private static async Task<string> WriteBashScript(OllamaWslConfiguration configuration, CancellationToken cancellationToken)
+        private static async Task<string> WriteBashScript(
+            OllamaWslConfiguration settings,
+            OllamaServiceConfiguration svc,
+            OllamaRocmConfiguration rocm,
+            OllamaRuntimeConfiguration runtime,
+            bool useVulkanFallback,
+            int contextSize,
+            CancellationToken cancellationToken)
         {
-            string[] lines =
-            [
-                .. OllamaScriptSections.Preamble(),
-                .. OllamaScriptSections.StopExistingInstances(configuration.Password, OllamaPort),
-                .. OllamaScriptSections.InstallBinaryIfMissing(configuration.Password, configuration.OllamaPath),
-                .. OllamaScriptSections.VulkanSetup(configuration.Password),
-                .. OllamaScriptSections.StopInstallerService(configuration.Password, OllamaPort),
-                .. OllamaScriptSections.ServeWithGpuEnvVars(configuration.OllamaPath, OllamaLogPath),
-                .. OllamaScriptSections.WaitForApi(configuration.BaseUrl, OllamaApiTagsPath),
-                .. OllamaScriptSections.PullModels(configuration.OllamaPath, configuration.Models)
-            ];
+            var lines = useVulkanFallback
+                ? BuildVulkanScript(settings, svc,runtime, contextSize)
+                : BuildRocmScript(settings, svc, rocm,runtime, contextSize);
 
-            var scriptPath = Path.Combine(Path.GetTempPath(), "ollama_start.sh");
+            var fileName = useVulkanFallback ? "ollama_start_vulkan.sh" : "ollama_start_rocm.sh";
+            var scriptPath = Path.Combine(Path.GetTempPath(), fileName);
             await File.WriteAllTextAsync(scriptPath, string.Join('\n', lines), cancellationToken);
             return scriptPath;
         }
+
+        private static string[] BuildRocmScript(
+            OllamaWslConfiguration s,
+            OllamaServiceConfiguration svc,
+            OllamaRocmConfiguration rocm,
+            OllamaRuntimeConfiguration runtime,
+            int contextSize) =>
+        [
+            .. OllamaScriptSections.Preamble(),
+            .. OllamaScriptSections.StopExistingInstances(s.Password, svc),
+            .. OllamaScriptSections.InstallBinaryIfMissing(s.Password, s.OllamaPath),
+            .. OllamaScriptSections.RocmSetup(s.Password, rocm),
+            .. OllamaScriptSections.StopInstallerService(s.Password, svc),
+            .. OllamaScriptSections.ServeWithRocmEnvVars(s.OllamaPath, svc, rocm, runtime, contextSize),
+            .. OllamaScriptSections.WaitForApi(s.BaseUrl, svc),
+            .. OllamaScriptSections.PullModels(s.OllamaPath, s.Models)
+        ];
+
+        private static string[] BuildVulkanScript(
+            OllamaWslConfiguration s,
+            OllamaServiceConfiguration svc,
+            OllamaRuntimeConfiguration runtime,
+            int contextSize) =>
+        [
+            .. OllamaScriptSections.Preamble(),
+            .. OllamaScriptSections.StopExistingInstances(s.Password, svc),
+            .. OllamaScriptSections.InstallBinaryIfMissing(s.Password, s.OllamaPath),
+            .. OllamaScriptSections.VulkanSetup(s.Password),
+            .. OllamaScriptSections.StopInstallerService(s.Password, svc),
+            .. OllamaScriptSections.ServeWithGpuEnvVars(s.OllamaPath, svc, runtime, contextSize),
+            .. OllamaScriptSections.WaitForApi(s.BaseUrl, svc),
+            .. OllamaScriptSections.PullModels(s.OllamaPath, s.Models)
+        ];
 
         /// <summary>
         /// Converts a Windows file system path to its equivalent Windows Subsystem for Linux (WSL) path format.
@@ -166,10 +229,12 @@ namespace ProblemCrawler.API.Helpers
             var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\.."));
             var dockerFolder = Path.Combine(projectRoot, "Docker");
             var profile = gpu.ToString();
+            var models = OllamaSetupConfiguration.FromConfiguration(configuration).Models;
+            var modelsList = string.Join(",", models);
 
             await RunProcess(
                 "cmd.exe",
-                $"/c docker compose --profile {profile} build --no-cache && docker compose --profile {profile} up -d",
+                $"/c set OLLAMA_MODELS={modelsList} && docker compose --profile {profile} build --no-cache && docker compose --profile {profile} up -d",
                 dockerFolder,
                 logger,
                 cancellationToken);
@@ -183,17 +248,16 @@ namespace ProblemCrawler.API.Helpers
         /// <param name="logger">The logger used to record VRAM usage and diagnostic information during verification.</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the verification operation.</param>
         /// <returns>A task that represents the asynchronous verification operation.</returns>
-
-        private static async Task VerifyOllama(
+        private static async Task<bool> VerifyOllama(
             string baseUrl,
             string warmupModel,
+            OllamaServiceConfiguration svc,
             ILogger logger,
             CancellationToken cancellationToken)
         {
             using var http = new HttpClient { BaseAddress = new Uri(baseUrl) };
-
-            await WarmUpModel(http, warmupModel, cancellationToken);
-            await LogVramUsage(http, logger, cancellationToken);
+            await WarmUpModel(http, warmupModel, svc.GeneratePath, cancellationToken);
+            return await LogVramUsage(http, svc.PsPath, logger, cancellationToken);
         }
         /// <summary>
         /// Sends a test request to the specified model endpoint to initialize or warm up the model for subsequent use.
@@ -204,14 +268,29 @@ namespace ProblemCrawler.API.Helpers
         /// <param name="model">The name of the model to warm up.</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the warm-up operation.</param>
         /// <returns>A task that represents the asynchronous warm-up operation.</returns>
-        private static async Task WarmUpModel(HttpClient http, string model, CancellationToken cancellationToken)
+        private static async Task WarmUpModel(
+            HttpClient http,
+            string model,
+            string generatePath,
+            CancellationToken cancellationToken)
         {
             var body = new StringContent(
                 $$"""{"model":"{{model}}","prompt":"hi","stream":false}""",
                 Encoding.UTF8,
                 "application/json");
 
-            await http.PostAsync(OllamaApiGenPath, body, cancellationToken);
+            var response = await http.PostAsync(generatePath, body, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            using var doc = JsonDocument.Parse(responseBody);
+            var evalCount = doc.RootElement.TryGetProperty("eval_count", out var ec) ? ec.GetInt32() : 0;
+
+            if (evalCount == 0)
+            {
+                await Task.Delay(3000, cancellationToken);
+                var retryResponse = await http.PostAsync(generatePath, body, cancellationToken);
+                retryResponse.EnsureSuccessStatusCode();
+            }
         }
         /// <summary>
         /// Logs the VRAM usage and model information retrieved from the Ollama API endpoint.
@@ -223,9 +302,13 @@ namespace ProblemCrawler.API.Helpers
         /// <param name="logger">The logger used to record VRAM usage and status messages.</param>
         /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
         /// <returns>A task that represents the asynchronous logging operation.</returns>
-        private static async Task LogVramUsage(HttpClient http, ILogger logger, CancellationToken cancellationToken)
+        private static async Task<bool> LogVramUsage(
+            HttpClient http,
+            string psPath,
+            ILogger logger,
+            CancellationToken cancellationToken)
         {
-            var response = await http.GetAsync(OllamaApiPsPath, cancellationToken);
+            var response = await http.GetAsync(psPath, cancellationToken);
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
 
             using var doc = JsonDocument.Parse(json);
@@ -234,7 +317,7 @@ namespace ProblemCrawler.API.Helpers
             if (models.Count == 0)
             {
                 logger.LogWarning("[ollama] No models reported by /api/ps — cannot verify VRAM usage");
-                return;
+                return false;
             }
 
             var model = models[0];
@@ -247,9 +330,13 @@ namespace ProblemCrawler.API.Helpers
                 name, sizeVram / 1024 / 1024, size / 1024 / 1024);
 
             if (sizeVram > 0)
+            {
                 logger.LogInformation("[ollama] GPU is ACTIVE");
-            else
-                logger.LogWarning("[ollama] Running on CPU — GPU not being used!");
+                return true;
+            }
+
+            logger.LogWarning("[ollama] Running on CPU — GPU not being used!");
+            return false;
         }
 
         /// <summary>
@@ -286,19 +373,30 @@ namespace ProblemCrawler.API.Helpers
 
             using var process = new Process { StartInfo = psi };
 
-            process.OutputDataReceived += (_, e) => { if (e.Data is not null) logger.LogDebug("{Line}", StripAnsi(e.Data)); };
-            process.ErrorDataReceived += (_, e) => { if (e.Data is not null) logger.LogDebug("{Line}", StripAnsi(e.Data)); };
-
             process.Start();
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
+
+            var stdoutTask = Task.Run(async () =>
+            {
+                while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+                    logger.LogDebug("{Line}", StripAnsi(line));
+            }, cancellationToken);
+
+            var stderrTask = Task.Run(async () =>
+            {
+                while (await process.StandardError.ReadLineAsync(cancellationToken) is { } line)
+                    logger.LogDebug("{Line}", StripAnsi(line));
+            }, cancellationToken);
 
             await process.WaitForExitAsync(cancellationToken);
+            await Task.WhenAll(stdoutTask, stderrTask);
 
             if (process.ExitCode != 0)
-                logger.LogError("[ollama] Process exited with code {Code}", process.ExitCode);
-            else
-                logger.LogDebug("[ollama] Process finished successfully");
+            {
+                logger.LogError("[ollama] Process '{FileName}' exited with code {Code}", fileName, process.ExitCode);
+                return;
+            }
+
+            logger.LogDebug("[ollama] Process finished successfully");
         }
         /// <summary>
         /// Removes ANSI escape sequences from the specified string.
@@ -308,6 +406,17 @@ namespace ProblemCrawler.API.Helpers
         /// string if the input contains only ANSI sequences or whitespace.</returns>
         private static string StripAnsi(string input) =>
             AnsiEscapePattern.Replace(input, string.Empty).Trim();
+        /// <summary>
+        /// Escapes a string for safe use as a Bash script argument by replacing double quotes and newlines.
+        /// </summary>
+        /// <remarks>This method does not perform full shell escaping and is intended for simple cases
+        /// where only double quotes and newlines need to be handled. For more complex scenarios, consider using a
+        /// comprehensive shell escaping utility.</remarks>
+        /// <param name="script">The input string to be escaped for use as a Bash argument. Cannot be null.</param>
+        /// <returns>A string with double quotes escaped and newlines replaced by a semicolon and space, suitable for use as a
+        /// Bash argument.</returns>
+        private static string EscapeForBashArg(string script) =>
+            script.Replace("\"", "\\\"").Replace("\n", "; ");
     }
 
 }

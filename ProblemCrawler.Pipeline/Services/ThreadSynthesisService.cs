@@ -1,17 +1,19 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Pipeline.Clients;
+using ProblemCrawler.Pipeline.Helper;
 using ProblemCrawler.Pipeline.Prompts;
+using System.Text.Json;
 
 namespace ProblemCrawler.Pipeline.Services;
 
 public sealed class ThreadSynthesisService(
     ICollectorItemRepository repository,
     OllamaHttpClient ollamaHttpClient,
+    OllamaJobGate ollamaJobGate,
     IOptions<ThreadSynthesisConfiguration> synthesisOptions,
     IOptions<OllamaConfiguration> ollamaOptions,
     ILogger<ThreadSynthesisService> logger) : IThreadSynthesisService
@@ -21,12 +23,13 @@ public sealed class ThreadSynthesisService(
     private readonly ThreadSynthesisConfiguration _synthesisOptions = synthesisOptions.Value;
     private readonly OllamaConfiguration _ollamaOptions = ollamaOptions.Value;
     private readonly ILogger<ThreadSynthesisService> _logger = logger;
-
+    private readonly OllamaJobGate _ollamaJobGate = ollamaJobGate;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedUrgencySignals = ["low", "medium", "high"];
 
     public async Task<ThreadSynthesisRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
+        await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
         var evaluated = 0;
         var synthesized = 0;
         var skipped = 0;
@@ -91,6 +94,7 @@ public sealed class ThreadSynthesisService(
                 var context = await _repository.GetThreadSynthesisContextAsync(rootCollectorItemId, cancellationToken);
                 if (context is null)
                 {
+                    await _repository.ReleaseSynthesisClaimAsync(rootCollectorItemId, cancellationToken);
                     return new ThreadSynthesisExecutionResult(
                         rootCollectorItemId,
                         false,
@@ -100,9 +104,15 @@ public sealed class ThreadSynthesisService(
                 }
 
                 var initialPrompt = LLMAnalysisPromptBuilder.BuildThreadSynthesisPrompt(context);
+
+                var estimatedTokens = (int)(initialPrompt.Length / 3.5);
+                _logger.LogInformation("[synthesis] Estimated prompt tokens: {Tokens}", estimatedTokens);
+
                 var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, cancellationToken);
                 if (string.IsNullOrWhiteSpace(modelOutput))
                 {
+                    _logger.LogWarning("[synthesis] Attempt {Attempt} returned empty response for {RootId}",
+                    attempt, rootCollectorItemId);
                     continue;
                 }
 
@@ -118,7 +128,7 @@ public sealed class ThreadSynthesisService(
                         "Thread synthesis succeeded.",
                         result!.Count);
                 }
-
+                _logger.LogWarning("[synthesis] Parse failed for {RootId} — {Error}", rootCollectorItemId, validationError);
                 var repaired = await TryRepairResponseAsync(
                     initialPrompt,
                     normalizedOutput,
@@ -143,6 +153,8 @@ public sealed class ThreadSynthesisService(
             }
         }
 
+        await _repository.ReleaseSynthesisClaimAsync(rootCollectorItemId, cancellationToken);
+
         return new ThreadSynthesisExecutionResult(
             rootCollectorItemId,
             false,
@@ -163,7 +175,12 @@ public sealed class ThreadSynthesisService(
 
         for (var repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++)
         {
+            _logger.LogWarning(
+                "[synthesis] Repair attempt {RepairAttempt}/{Max} — reason: {Error}",
+                repairAttempt, maxRepairAttempts, error);
             var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
+            var estimatedRepairTokens = (int)(repairPrompt.Length / 3.5);
+            _logger.LogDebug("[synthesis] Estimated repair prompt tokens: {Tokens}", estimatedRepairTokens);
             var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
             if (string.IsNullOrWhiteSpace(repairedResponse))
             {
@@ -346,13 +363,13 @@ public sealed class ThreadSynthesisService(
     {
         return idea with
         {
-            ProblemSummary = idea.ProblemSummary.Trim(),
+            ProblemSummary = (idea.ProblemSummary ?? string.Empty).Trim(),
             ProblemDetails = NullIfEmpty(idea.ProblemDetails),
             Actor = NullIfEmpty(idea.Actor),
-            Industry = idea.Industry.Trim(),
+            Industry = (idea.Industry ?? string.Empty).Trim(),
             CurrentWorkaround = NullIfEmpty(idea.CurrentWorkaround),
             DesiredOutcome = NullIfEmpty(idea.DesiredOutcome),
-            UrgencySignal = idea.UrgencySignal?.Trim().ToLowerInvariant() ?? "low",
+            UrgencySignal = (idea.UrgencySignal ?? "low").Trim().ToLowerInvariant(),
             ActionabilityRationale = NullIfEmpty(idea.ActionabilityRationale),
             SupportingEvidenceNumbers = idea.SupportingEvidenceNumbers ?? []
         };
@@ -367,8 +384,13 @@ public sealed class ThreadSynthesisService(
             NormalizeFingerprintPart(idea.Industry));
     }
 
-    private static string NormalizeFingerprintPart(string value)
+    private static string NormalizeFingerprintPart(string? value)
     {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
         var chars = value
             .Trim()
             .ToLowerInvariant()
@@ -474,10 +496,10 @@ public sealed class ThreadSynthesisService(
     private sealed record ThreadSynthesisResponse(IReadOnlyList<ThreadSynthesisIdea>? Ideas);
 
     private sealed record ThreadSynthesisIdea(
-        string ProblemSummary,
+        string? ProblemSummary,
         string? ProblemDetails,
         string? Actor,
-        string Industry,
+        string? Industry,
         string? CurrentWorkaround,
         string? DesiredOutcome,
         string UrgencySignal,

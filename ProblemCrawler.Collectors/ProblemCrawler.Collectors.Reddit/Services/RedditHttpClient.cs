@@ -131,10 +131,13 @@ public class RedditHttpClient(
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error fetching from Reddit");
-                throw;
             }
         }
 

@@ -6,7 +6,7 @@ using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Infrastructure.Data;
 using ProblemCrawler.Infrastructure.Profiles;
 using ProblemCrawler.Infrastructure.Repositories;
-
+using Pgvector.EntityFrameworkCore;
 namespace ProblemCrawler.Infrastructure
 {
     /// <summary>
@@ -23,10 +23,11 @@ namespace ProblemCrawler.Infrastructure
             var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
 
             dataSourceBuilder.EnableDynamicJson();
+            dataSourceBuilder.UseVector();
             var dataSource = dataSourceBuilder.Build();
 
             services.AddDbContext<ProblemCrawlerDbContext>(options =>
-                options.UseNpgsql(dataSource)
+                options.UseNpgsql(dataSource, o => o.UseVector())
             );
 
             services.AddAutoMapper(cfg =>
@@ -34,6 +35,7 @@ namespace ProblemCrawler.Infrastructure
                 cfg.AddProfile<ContentItemEntityMappingProfile>();
             });
             services.AddScoped<ICollectorItemRepository, CollectorItemRepository>();
+            services.AddScoped<IClusterRepository, ClusterRepository>();
             return services;
         }
     }
