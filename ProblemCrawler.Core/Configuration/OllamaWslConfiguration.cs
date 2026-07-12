@@ -91,16 +91,19 @@ namespace ProblemCrawler.Core.Configuration
         public sealed record OllamaRuntimeConfiguration(
            string KvCacheType,
            int NumParallel,
+           int SynthesisNumParallel,
            bool FlashAttention)
         {
             public static OllamaRuntimeConfiguration FromConfiguration(IConfiguration cfg)
             {
                 string kvCacheType = cfg["Wsl:Ollama:KvCacheType"] ?? "q8_0";
                 int numParallel = int.TryParse(cfg["Wsl:Ollama:NumParallel"], out var n) ? n : 1;
+                int synthesisNumParallel = int.TryParse(cfg["Wsl:Ollama:SynthesisNumParallel"], out var s) ? s : 1;
                 bool flashAttention = bool.TryParse(cfg["Wsl:Ollama:FlashAttention"], out var f) ? f : true;
                 return new OllamaRuntimeConfiguration(
                     KvCacheType: kvCacheType,
                     NumParallel: numParallel,
+                    SynthesisNumParallel: synthesisNumParallel,
                     FlashAttention: flashAttention
                 );
             }

@@ -151,6 +151,48 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.ToTable("ClusterRun", (string)null);
                 });
 
+            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ClusterValidationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ClusterId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ClusterRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CoherenceRating")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("MergeTargetClusterId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<int>("NoveltyRating")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProductPotentialRating")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClusterRunId", "ClusterId")
+                        .IsUnique();
+
+                    b.ToTable("ClusterValidation", (string)null);
+                });
+
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -220,6 +262,15 @@ namespace ProblemCrawler.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Label")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Opportunity")
+                        .HasColumnType("text");
 
                     b.Property<int>("Size")
                         .HasColumnType("integer");
@@ -470,6 +521,34 @@ namespace ProblemCrawler.Infrastructure.Migrations
                     b.ToTable("ThreadSynthesizedIdeas", (string)null);
                 });
 
+            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.UmapProjectionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClusterRunId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ThreadSynthesizedIdeaEmbeddingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<float>("X")
+                        .HasColumnType("real");
+
+                    b.Property<float>("Y")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ThreadSynthesizedIdeaEmbeddingId");
+
+                    b.HasIndex("ClusterRunId", "ThreadSynthesizedIdeaEmbeddingId")
+                        .IsUnique();
+
+                    b.ToTable("UmapProjections");
+                });
+
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.AnalysedItemEntity", b =>
                 {
                     b.HasOne("ProblemCrawler.Infrastructure.Entities.CollectorItemEntity", "CollectorItem")
@@ -485,6 +564,17 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("CollectorItem");
+                });
+
+            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ClusterValidationEntity", b =>
+                {
+                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", "ClusterRun")
+                        .WithMany()
+                        .HasForeignKey("ClusterRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClusterRun");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ProblemClusterArchiveEntity", b =>
@@ -553,6 +643,25 @@ namespace ProblemCrawler.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ThreadSynthesisRun");
+                });
+
+            modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.UmapProjectionEntity", b =>
+                {
+                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", "ClusterRun")
+                        .WithMany()
+                        .HasForeignKey("ClusterRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProblemCrawler.Infrastructure.Entities.ThreadSynthesizedIdeaEmbeddingEntity", "Embedding")
+                        .WithMany()
+                        .HasForeignKey("ThreadSynthesizedIdeaEmbeddingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ClusterRun");
+
+                    b.Navigation("Embedding");
                 });
 
             modelBuilder.Entity("ProblemCrawler.Infrastructure.Entities.ClusterRunEntity", b =>

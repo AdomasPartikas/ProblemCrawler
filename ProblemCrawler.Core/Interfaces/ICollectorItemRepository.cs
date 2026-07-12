@@ -14,7 +14,7 @@ public interface ICollectorItemRepository
     Task<IReadOnlyList<LLMAnalysisCandidate>> GetLlmAnalysisCandidatesAsync(int batchSize, CancellationToken cancellationToken);
     Task<LLMAnalysisContext?> GetLlmAnalysisContextAsync(Guid collectorItemId, CancellationToken cancellationToken);
     Task<LLMAnalysisCandidate?> GetLlmAnalysisCandidateByIdAsync(Guid collectorItemId, CancellationToken cancellationToken);
-    Task UpsertAnalysedItemAsync(AnalysedItemUpsert analysis, CancellationToken cancellationToken);
+    Task UpsertAnalysedItemsBatchAsync(IReadOnlyList<AnalysedItemUpsert> analyses, CancellationToken cancellationToken);
     Task<IReadOnlyList<ThreadSynthesisCandidate>> GetThreadSynthesisCandidatesAsync(int batchSize, CancellationToken cancellationToken);
     Task<ThreadSynthesisContext?> GetThreadSynthesisContextAsync(Guid rootCollectorItemId, CancellationToken cancellationToken);
     Task UpsertThreadSynthesisAsync(ThreadSynthesisUpsert synthesis, CancellationToken cancellationToken);

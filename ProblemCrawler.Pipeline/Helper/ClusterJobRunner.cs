@@ -63,6 +63,12 @@ namespace ProblemCrawler.API.Helpers
                 EmbeddingArchiveTable: Require("Clustering:EmbeddingArchiveTable"),
                 ProblemClusterArchiveTable: Require("Clustering:ProblemClusterArchiveTable"),
                 MaxClusterRuns: Require("Clustering:MaxClusterRuns"),
+                UmapProjectionTable: Require("Clustering:UmapProjectionTable"),
+                UmapNComponentsCluster: Require("Clustering:Umap:NComponentsCluster"),
+                UmapNNeighbors: Require("Clustering:Umap:NNeighbors"),
+                UmapMinDistCluster: Require("Clustering:Umap:MinDistCluster"),
+                UmapMinDistViz: Require("Clustering:Umap:MinDistViz"),
+                UmapRandomState: Require("Clustering:Umap:RandomState"),
                 Schema: Require("Clustering:Schema")
             );
         }
@@ -135,6 +141,12 @@ namespace ProblemCrawler.API.Helpers
                 ["EMBEDDING_ARCHIVE_TABLE"] = config.EmbeddingArchiveTable,
                 ["PROBLEM_CLUSTER_ARCHIVE_TABLE"] = config.ProblemClusterArchiveTable,
                 ["MAX_CLUSTER_RUNS"] = config.MaxClusterRuns,
+                ["UMAP_PROJECTION_TABLE"] = config.UmapProjectionTable,
+                ["UMAP_N_COMPONENTS_CLUSTER"] = config.UmapNComponentsCluster,
+                ["UMAP_N_NEIGHBORS"] = config.UmapNNeighbors,
+                ["UMAP_MIN_DIST_CLUSTER"] = config.UmapMinDistCluster,
+                ["UMAP_MIN_DIST_VIZ"] = config.UmapMinDistViz,
+                ["UMAP_RANDOM_STATE"] = config.UmapRandomState,
                 ["DB_SCHEMA"] = config.Schema
             });
 
@@ -273,6 +285,12 @@ namespace ProblemCrawler.API.Helpers
             string EmbeddingArchiveTable,
             string ProblemClusterArchiveTable,
             string MaxClusterRuns,
+            string UmapProjectionTable,
+            string UmapNComponentsCluster,
+            string UmapNNeighbors,
+            string UmapMinDistCluster,
+            string UmapMinDistViz,
+            string UmapRandomState,
             string Schema);
     }
 }

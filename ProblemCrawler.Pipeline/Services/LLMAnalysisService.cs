@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
@@ -16,9 +17,11 @@ public sealed class LLMAnalysisService(
     OllamaHttpClient ollamaHttpClient,
     IOptions<LLMAnalysisConfiguration> analysisOptions,
     IOptions<OllamaConfiguration> ollamaOptions,
+    OllamaContextConfiguration contextConfiguration,
     OllamaJobGate ollamaJobGate,
     ILogger<LLMAnalysisService> logger) : ILLMAnalysisService
 {
+    
     private readonly ICollectorItemRepository _repository = repository;
     private readonly OllamaHttpClient _ollamaHttpClient = ollamaHttpClient;
     private readonly LLMAnalysisConfiguration _analysisOptions = analysisOptions.Value;
@@ -30,7 +33,8 @@ public sealed class LLMAnalysisService(
 
     public async Task<LLMAnalysisRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
-        await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
+        
+        await using var _ = await _ollamaJobGate.AcquireJobAsync(cancellationToken);
         var evaluated = 0;
         var analysed = 0;
         var skipped = 0;
@@ -45,18 +49,47 @@ public sealed class LLMAnalysisService(
             {
                 break;
             }
-
+            var contexts = new Dictionary<Guid, LLMAnalysisContext>();
             foreach (var candidate in candidates)
             {
+                var ctx = await _repository.GetLlmAnalysisContextAsync(candidate.Id, cancellationToken);
+                if (ctx is not null) contexts[candidate.Id] = ctx;
+            }
+
+            var tasks = candidates.Select(async candidate =>
+            {
+                if (!contexts.TryGetValue(candidate.Id, out var context))
+                    return new LLMAnalysisExecutionResult(candidate.Id, false, 0, "Unable to load item context.", null);
+
+                await using var slot = await _ollamaJobGate.AcquireAvailableSlotsAsync(cancellationToken);
+                return await ExecuteCandidateAsync(candidate, context, cancellationToken);
+            });
+
+            var results = await Task.WhenAll(tasks);
+
+            var upserts = results
+            .Where(r => r.Success && r.Result is not null)
+            .Select(r => new AnalysedItemUpsert(
+                r.CollectorItemId,
+                r.Result!,
+                JsonSerializer.Serialize(r.Result, JsonOptions),
+                _ollamaOptions.Model,
+                DateTime.UtcNow))
+            .ToList();
+
+            if (upserts.Count > 0)
+                await _repository.UpsertAnalysedItemsBatchAsync(upserts, cancellationToken);
+
+            foreach (var result in results)
+            {
                 evaluated++;
-                var executionResult = await ExecuteCandidateAsync(candidate, cancellationToken);
-                if (executionResult.Success)
+                if (result.Success)
                 {
                     analysed++;
                     continue;
                 }
 
-                if (executionResult.Attempts > 0)
+                if (result.Attempts > 0)
                 {
                     failed++;
                 }
@@ -88,40 +121,33 @@ public sealed class LLMAnalysisService(
     {
         var candidate = await _repository.GetLlmAnalysisCandidateByIdAsync(collectorItemId, cancellationToken);
         if (candidate is null)
-        {
             return new LLMAnalysisExecutionResult(collectorItemId, false, 0, "Collector item was not found.", null);
-        }
 
         if (candidate.CurrentStage != AnalysisStages.ReadyForAnalysis)
-        {
-            return new LLMAnalysisExecutionResult(
-                collectorItemId,
-                false,
-                0,
-                $"Collector item stage is {candidate.CurrentStage}; expected ReadyForAnalysis.",
-                null);
-        }
+            return new LLMAnalysisExecutionResult(collectorItemId, false, 0,
+                $"Collector item stage is {candidate.CurrentStage}; expected ReadyForAnalysis.", null);
 
-        return await ExecuteCandidateAsync(candidate, cancellationToken);
+        var context = await _repository.GetLlmAnalysisContextAsync(collectorItemId, cancellationToken);
+        if (context is null)
+            return new LLMAnalysisExecutionResult(collectorItemId, false, 0, "Unable to load item context.", null);
+
+        return await ExecuteCandidateAsync(candidate, context, cancellationToken);
     }
 
-    private async Task<LLMAnalysisExecutionResult> ExecuteCandidateAsync(LLMAnalysisCandidate candidate, CancellationToken cancellationToken)
+    private async Task<LLMAnalysisExecutionResult> ExecuteCandidateAsync(LLMAnalysisCandidate candidate,LLMAnalysisContext context, CancellationToken cancellationToken)
     {
         var maxAttempts = Math.Max(1, _analysisOptions.MaxAttemptsPerItem);
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
-                var context = await _repository.GetLlmAnalysisContextAsync(candidate.Id, cancellationToken);
-                if (context is null)
-                {
-                    return new LLMAnalysisExecutionResult(candidate.Id, false, attempt, "Unable to load item context.", null);
-                }
 
                 var initialPrompt = LLMAnalysisPromptBuilder.BuildInitialPrompt(context);
-                var estimatedTokens = (int)(initialPrompt.Length / 3.5);
+                var estimatedTokens = (int)(initialPrompt.Length / 4.7);
                 _logger.LogDebug("[Analysis] Estimated prompt tokens: {Tokens}", estimatedTokens);
-                var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, cancellationToken);
+
+                var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt,false, contextConfiguration.AnalysisContextSize, cancellationToken);
+
                 if (string.IsNullOrWhiteSpace(modelOutput))
                 {
                     continue;
@@ -131,15 +157,13 @@ public sealed class LLMAnalysisService(
 
                 if (TryParseResult(normalizedOutput, out var result, out var validationError))
                 {
-                    await PersistResultAsync(candidate.Id, result!, normalizedOutput, cancellationToken);
                     return new LLMAnalysisExecutionResult(candidate.Id, true, attempt, "Analysis succeeded.", result);
                 }
 
-                var repaired = await TryRepairResponseAsync(initialPrompt, normalizedOutput, validationError!, cancellationToken);
+                var repaired = await TryRepairResponseAsync(initialPrompt, validationError!, cancellationToken);
                 if (repaired is not null)
                 {
-                    await PersistResultAsync(candidate.Id, repaired.Value.Result, repaired.Value.RawJson, cancellationToken);
-                    return new LLMAnalysisExecutionResult(candidate.Id, true, attempt, "Analysis succeeded after response repair.", repaired.Value.Result);
+                    return new LLMAnalysisExecutionResult(candidate.Id, true, attempt, "Analysis succeeded after response repair.", repaired);
                 }
             }
             catch (Exception ex)
@@ -156,8 +180,7 @@ public sealed class LLMAnalysisService(
             null);
     }
 
-    private async Task<(LLMAnalysisResult Result, string RawJson)?> TryRepairResponseAsync(
-        string originalPrompt,
+    private async Task<LLMAnalysisResult?> TryRepairResponseAsync(
         string badResponse,
         string error,
         CancellationToken cancellationToken)
@@ -167,12 +190,12 @@ public sealed class LLMAnalysisService(
 
         for (var repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++)
         {
-            var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
+            var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(previousResponse, error);
 
-            var estimatedRepairTokens = (int)(repairPrompt.Length / 3.5);
+            var estimatedRepairTokens = (int)(repairPrompt.Length / 4.7);
             _logger.LogDebug("[Analysis] Estimated prompt tokens: {Tokens}", estimatedRepairTokens);
 
-            var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
+            var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, false, contextConfiguration.AnalysisContextSize, cancellationToken);
             if (string.IsNullOrWhiteSpace(repairedResponse))
             {
                 continue;
@@ -181,29 +204,13 @@ public sealed class LLMAnalysisService(
             var normalized = NormalizeModelOutput(repairedResponse);
             if (TryParseResult(normalized, out var repairedResult, out _))
             {
-                return (repairedResult!, normalized);
+                return repairedResult!;
             }
 
             previousResponse = normalized;
         }
 
         return null;
-    }
-
-    private async Task PersistResultAsync(
-        Guid collectorItemId,
-        LLMAnalysisResult result,
-        string rawJson,
-        CancellationToken cancellationToken)
-    {
-        var upsert = new AnalysedItemUpsert(
-            collectorItemId,
-            result,
-            rawJson,
-            _ollamaOptions.Model,
-            DateTime.UtcNow);
-
-        await _repository.UpsertAnalysedItemAsync(upsert, cancellationToken);
     }
 
     private static bool TryParseResult(string rawResponse, out LLMAnalysisResult? result, out string? error)

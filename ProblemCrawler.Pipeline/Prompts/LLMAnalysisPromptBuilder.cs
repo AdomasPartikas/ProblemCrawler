@@ -83,20 +83,17 @@ public static class LLMAnalysisPromptBuilder
         return prompt;
     }
 
-    public static string BuildRepairPrompt(string originalPrompt, string invalidResponse, string error)
+    public static string BuildRepairPrompt(string invalidResponse, string error)
     {
         return $$"""
-            Your previous output was invalid.
-            Validation error: {{error}}
+        Your previous JSON output failed validation.
+        Error: {{error}}
 
-            Original task:
-            {{originalPrompt}}
+        Previous output:
+        {{invalidResponse}}
 
-            Previous invalid output:
-            {{invalidResponse}}
-
-            Return corrected JSON only. No markdown and no extra text.
-            """;
+        Return corrected JSON only. No markdown, no extra text.
+        """;
     }
 
     public static string BuildThreadSynthesisPrompt(ThreadSynthesisContext context)

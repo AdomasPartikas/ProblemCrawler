@@ -1,0 +1,24 @@
+const BASE = '/api/dashboard'
+
+async function get(path) {
+    const res = await fetch(`${BASE}${path}`)
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+    return res.json()
+}
+
+async function post(path, body) {
+    const res = await fetch(`${BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    })
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+}
+
+export const api = {
+    getRuns: () => get('/runs'),
+    getAtlas: (runId) => get(`/atlas${runId ? `?clusterRunId=${runId}` : ''}`),
+    getOpportunities: (runId) => get(`/opportunities${runId ? `?clusterRunId=${runId}` : ''}`),
+    getCluster: (clusterId, runId) => get(`/clusters/${clusterId}${runId ? `?clusterRunId=${runId}` : ''}`),
+    submitValidation: (clusterId, runId, body) => post(`/clusters/${clusterId}/validation?clusterRunId=${runId}`, body),
+}

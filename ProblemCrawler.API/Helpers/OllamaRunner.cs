@@ -1,6 +1,7 @@
 ﻿using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
 using ProblemCrawler.Core.Scripts;
+using Serilog.Core;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -256,7 +257,7 @@ namespace ProblemCrawler.API.Helpers
             CancellationToken cancellationToken)
         {
             using var http = new HttpClient { BaseAddress = new Uri(baseUrl) };
-            await WarmUpModel(http, warmupModel, svc.GeneratePath, cancellationToken);
+            await WarmUpModel(http, warmupModel, svc.GeneratePath,logger, cancellationToken);
             return await LogVramUsage(http, svc.PsPath, logger, cancellationToken);
         }
         /// <summary>
@@ -272,6 +273,7 @@ namespace ProblemCrawler.API.Helpers
             HttpClient http,
             string model,
             string generatePath,
+            ILogger logger,
             CancellationToken cancellationToken)
         {
             var body = new StringContent(
@@ -289,7 +291,12 @@ namespace ProblemCrawler.API.Helpers
             {
                 await Task.Delay(3000, cancellationToken);
                 var retryResponse = await http.PostAsync(generatePath, body, cancellationToken);
-                retryResponse.EnsureSuccessStatusCode();
+                if (!retryResponse.IsSuccessStatusCode)
+                {
+                    var err = await retryResponse.Content.ReadAsStringAsync(cancellationToken);
+                    logger.LogError("[ollama] Warmup failed ({Code}): {Body}", (int)retryResponse.StatusCode, err);
+                    retryResponse.EnsureSuccessStatusCode();
+                }
             }
         }
         /// <summary>

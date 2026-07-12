@@ -1,12 +1,13 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Collectors.Reddit.Contracts;
 using ProblemCrawler.Collectors.Reddit.Serialization;
+using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Enums;
-using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Extensions;
+using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Core.Records.Reddit;
+using System.Net;
+using System.Text.Json;
 
 namespace ProblemCrawler.Collectors.Reddit.Services;
 
@@ -101,6 +102,9 @@ public class RedditHttpClient(
     /// </summary>
     private async Task<T?> FetchWithRetryAsync<T>(string url, CancellationToken cancellationToken)
     {
+        HttpStatusCode? lastStatusCode = null;
+        string? lastResponseBody = null;
+
         for (int attempt = 0; attempt < _config.MaxRetries; attempt++)
         {
             try
@@ -110,22 +114,35 @@ public class RedditHttpClient(
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
                 }
 
+                _logger.LogDebug("Reddit fetch attempt {Attempt}/{Max}: {Url}",
+                    attempt + 1, _config.MaxRetries, url);
+
                 var response = await _httpClient.GetAsync(url, cancellationToken);
+                lastStatusCode = response.StatusCode;
 
                 if (response.IsSuccessStatusCode)
                 {
                     var content = await response.Content.ReadAsStringAsync(cancellationToken);
-                    var result = JsonSerializer.Deserialize<T>(content, _jsonOptions);
-                    return result;
+                    return JsonSerializer.Deserialize<T>(content, _jsonOptions);
                 }
 
-                if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 220;
+                    _logger.LogWarning("Reddit rate limited on attempt {Attempt}, waiting {Seconds}s",
+                        attempt + 1, retryAfter);
                     await Task.Delay((int)(retryAfter * 1000), cancellationToken);
                     continue;
                 }
 
+                if ((int)response.StatusCode >= 400 && (int)response.StatusCode < 500)
+                {
+                    _logger.LogError("Reddit returned {StatusCode} for {Url}",
+                        response.StatusCode, url);
+                    return default;
+                }
+                _logger.LogWarning("Reddit returned {StatusCode} on attempt {Attempt} for {Url}",
+                response.StatusCode, attempt + 1, url);
                 if (attempt < _config.MaxRetries - 1)
                 {
                     await Task.Delay(_config.RequestDelayMs, cancellationToken);
@@ -137,11 +154,13 @@ public class RedditHttpClient(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error fetching from Reddit");
+                _logger.LogError(ex, "Unexpected error on attempt {Attempt} fetching {Url}", attempt + 1, url);
             }
         }
 
-        _logger.LogError("Failed to fetch from Reddit after {MaxRetries} attempts", _config.MaxRetries);
+        _logger.LogError(
+            "Failed to fetch from Reddit after {MaxRetries} attempts. Url={Url} LastStatus={Status} LastBody={Body}",
+            _config.MaxRetries, url, lastStatusCode, lastResponseBody);
         return default;
     }
 

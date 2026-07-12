@@ -23,6 +23,8 @@ namespace ProblemCrawler.Infrastructure.Data
         public DbSet<ProblemClusterEntity> ProblemClusters => Set<ProblemClusterEntity>();
         public DbSet<ProblemClusterArchiveEntity> ProblemClusterArchives => Set<ProblemClusterArchiveEntity>();
         public DbSet<ThreadSynthesizedIdeaEmbeddingArchiveEntity> IdeaEmbeddingArchives => Set<ThreadSynthesizedIdeaEmbeddingArchiveEntity>();
+        public DbSet<UmapProjectionEntity> UmapProjections => Set<UmapProjectionEntity>();
+        public DbSet<ClusterValidationEntity> ClusterValidations => Set<ClusterValidationEntity>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.HasPostgresExtension("vector");

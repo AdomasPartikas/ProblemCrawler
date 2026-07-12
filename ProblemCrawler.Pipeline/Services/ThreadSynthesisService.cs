@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Core.Factory;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Records.LLM;
 using ProblemCrawler.Pipeline.Clients;
@@ -11,14 +12,15 @@ using System.Text.Json;
 namespace ProblemCrawler.Pipeline.Services;
 
 public sealed class ThreadSynthesisService(
-    ICollectorItemRepository repository,
+    RepositoryScope repositoryScope,
     OllamaHttpClient ollamaHttpClient,
     OllamaJobGate ollamaJobGate,
     IOptions<ThreadSynthesisConfiguration> synthesisOptions,
+    OllamaContextConfiguration contextConfiguration,
     IOptions<OllamaConfiguration> ollamaOptions,
     ILogger<ThreadSynthesisService> logger) : IThreadSynthesisService
 {
-    private readonly ICollectorItemRepository _repository = repository;
+    private readonly RepositoryScope _repositoryScope = repositoryScope;
     private readonly OllamaHttpClient _ollamaHttpClient = ollamaHttpClient;
     private readonly ThreadSynthesisConfiguration _synthesisOptions = synthesisOptions.Value;
     private readonly OllamaConfiguration _ollamaOptions = ollamaOptions.Value;
@@ -29,45 +31,53 @@ public sealed class ThreadSynthesisService(
 
     public async Task<ThreadSynthesisRunSummary> ExecuteAsync(CancellationToken cancellationToken)
     {
-        await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
+        await using var _ = await _ollamaJobGate.AcquireJobAsync(cancellationToken);
+        _ollamaJobGate.StartDiagnosticLogging(_logger, cancellationToken);
         var evaluated = 0;
         var synthesized = 0;
         var skipped = 0;
         var failed = 0;
 
         var batchSize = _synthesisOptions.BatchSize <= 0 ? 25 : _synthesisOptions.BatchSize;
-
-        while (!cancellationToken.IsCancellationRequested)
+        var (loaderRepo, loaderScope) = await _repositoryScope.CreateAsync();
+        await using (loaderScope)
         {
-            var candidates = await _repository.GetThreadSynthesisCandidatesAsync(batchSize, cancellationToken);
-            if (candidates.Count == 0)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                break;
-            }
-
-            foreach (var candidate in candidates)
-            {
-                evaluated++;
-                var executionResult = await ExecuteForThreadAsync(candidate.RootCollectorItemId, cancellationToken);
-                if (executionResult.Success)
+                var candidates = await loaderRepo.GetThreadSynthesisCandidatesAsync(batchSize, cancellationToken);
+                if (candidates.Count == 0)
                 {
-                    synthesized++;
-                    continue;
+                    break;
+                }
+                var contexts = new Dictionary<Guid, ThreadSynthesisContext>();
+                foreach (var candidate in candidates)
+                {
+                    var ctx = await loaderRepo.GetThreadSynthesisContextAsync(candidate.RootCollectorItemId, cancellationToken);
+                    if (ctx is not null) contexts[candidate.RootCollectorItemId] = ctx;
+                    else await loaderRepo.ReleaseSynthesisClaimAsync(candidate.RootCollectorItemId, cancellationToken);
+                }
+                var tasks = candidates.Select(async candidate =>
+                {
+                    if (!contexts.TryGetValue(candidate.RootCollectorItemId, out var context))
+                        return new ThreadSynthesisExecutionResult(candidate.RootCollectorItemId, false, 0, "Unable to load thread synthesis context.", 0);
+
+                    var (repo, scope) = await _repositoryScope.CreateAsync();
+                    await using (scope)
+                    {
+                        return await ExecuteForThreadAsync(candidate.RootCollectorItemId, context, repo, cancellationToken);
+                    }
+                });
+                var results = await Task.WhenAll(tasks);
+
+                foreach (var result in results)
+                {
+                    evaluated++;
+                    if (result.Success) { synthesized++; continue; }
+                    if (result.Attempts > 0) failed++;
+                    else skipped++;
                 }
 
-                if (executionResult.Attempts > 0)
-                {
-                    failed++;
-                }
-                else
-                {
-                    skipped++;
-                }
-            }
-
-            if (candidates.Count < batchSize)
-            {
-                break;
+                if (candidates.Count < batchSize) break;
             }
         }
 
@@ -83,125 +93,143 @@ public sealed class ThreadSynthesisService(
         return summary;
     }
 
-    public async Task<ThreadSynthesisExecutionResult> ExecuteForThreadAsync(Guid rootCollectorItemId, CancellationToken cancellationToken)
+    public async Task<ThreadSynthesisExecutionResult> ExecuteForThreadAsync(Guid rootCollectorItemId, ThreadSynthesisContext context, ICollectorItemRepository repository, CancellationToken cancellationToken)
     {
         var maxAttempts = Math.Max(1, _synthesisOptions.MaxAttemptsPerThread);
+        var initialPrompt = LLMAnalysisPromptBuilder.BuildThreadSynthesisPrompt(context);
+        var estimatedTokens = (int)(initialPrompt.Length / 3.5);
+        var isLarge = estimatedTokens > contextConfiguration.SynthesisContextSize;
+        var contextSize = isLarge ? contextConfiguration.FullContextSize : contextConfiguration.SynthesisContextSize;
+        var tokK = estimatedTokens >= 1000 ? $"{estimatedTokens / 1000.0:F1}k" : estimatedTokens.ToString();
+        var ctxK = contextSize / 1024;
 
-        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        IReadOnlyList<ThreadSynthesisIdeaResult>? parsedResult = null;
+        var successAttempt = 0;
+        var repaired = false;
+
+        await using (var slot = isLarge
+            ? await _ollamaJobGate.AcquireFullContextSlotAsync(cancellationToken)
+            : await _ollamaJobGate.AcquireSynthesisSlotAsync(cancellationToken))
         {
-            try
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                var context = await _repository.GetThreadSynthesisContextAsync(rootCollectorItemId, cancellationToken);
-                if (context is null)
+                try
                 {
-                    await _repository.ReleaseSynthesisClaimAsync(rootCollectorItemId, cancellationToken);
-                    return new ThreadSynthesisExecutionResult(
-                        rootCollectorItemId,
-                        false,
-                        0,
-                        "Unable to load thread synthesis context.",
-                        0);
+                    var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, false, contextSize, cancellationToken);
+
+                    if (string.IsNullOrWhiteSpace(modelOutput))
+                    {
+                        _logger.LogWarning("[synthesis] ~{Tok}tok  ctx={Ctx}k attempt={Attempt} -> empty",
+                            tokK, ctxK, attempt);
+                        continue;
+                    }
+
+                    var normalizedOutput = NormalizeModelOutput(modelOutput);
+
+                    if (TryParseResult(normalizedOutput, context.Items, out var result, out var validationError))
+                    {
+                        _logger.LogInformation("[synthesis] ~{Tok}tok  ctx={Ctx}k attempt={Attempt} -> {Count} idea(s)",
+                            tokK, ctxK, attempt, result!.Count);
+                        parsedResult = result;
+                        successAttempt = attempt;
+                        break;
+                    }
+
+                    _logger.LogWarning("[synthesis] ~{Tok}tok  ctx={Ctx}k attempt={Attempt} -> parse fail: {Error}",
+                         tokK, ctxK, attempt, validationError);
+
+                    var repairedResult = await TryRepairResponseAsync(
+                        initialPrompt, normalizedOutput, validationError!,
+                        contextSize, context.Items, cancellationToken);
+
+                    if (repairedResult is not null)
+                    {
+                        _logger.LogInformation("[synthesis] ~{Tok}tok  ctx={Ctx}k  attempt={Attempt} → repaired  {Count} idea(s)",
+                            tokK, ctxK, attempt, repairedResult.Value.Result.Count);
+                        parsedResult = repairedResult.Value.Result;
+                        successAttempt = attempt;
+                        repaired = true;
+                        break;
+                    }
                 }
-
-                var initialPrompt = LLMAnalysisPromptBuilder.BuildThreadSynthesisPrompt(context);
-
-                var estimatedTokens = (int)(initialPrompt.Length / 3.5);
-                _logger.LogInformation("[synthesis] Estimated prompt tokens: {Tokens}", estimatedTokens);
-
-                var modelOutput = await _ollamaHttpClient.GenerateAsync(initialPrompt, cancellationToken);
-                if (string.IsNullOrWhiteSpace(modelOutput))
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("[synthesis] Attempt {Attempt} returned empty response for {RootId}",
-                    attempt, rootCollectorItemId);
-                    continue;
+                    _logger.LogWarning(ex, "[synthesis] attempt {Attempt} threw for {RootId}", attempt, rootCollectorItemId);
                 }
-
-                var normalizedOutput = NormalizeModelOutput(modelOutput);
-
-                if (TryParseResult(normalizedOutput, context.Items, out var result, out var validationError))
-                {
-                    await PersistResultAsync(context, result!, cancellationToken);
-                    return new ThreadSynthesisExecutionResult(
-                        rootCollectorItemId,
-                        true,
-                        attempt,
-                        "Thread synthesis succeeded.",
-                        result!.Count);
-                }
-                _logger.LogWarning("[synthesis] Parse failed for {RootId} — {Error}", rootCollectorItemId, validationError);
-                var repaired = await TryRepairResponseAsync(
-                    initialPrompt,
-                    normalizedOutput,
-                    validationError!,
-                    context.Items,
-                    cancellationToken);
-
-                if (repaired is not null)
-                {
-                    await PersistResultAsync(context, repaired.Value.Result, cancellationToken);
-                    return new ThreadSynthesisExecutionResult(
-                        rootCollectorItemId,
-                        true,
-                        attempt,
-                        "Thread synthesis succeeded after response repair.",
-                        repaired.Value.Result.Count);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Thread synthesis attempt {Attempt} failed for root item {RootCollectorItemId}", attempt, rootCollectorItemId);
             }
         }
 
-        await _repository.ReleaseSynthesisClaimAsync(rootCollectorItemId, cancellationToken);
+        if (parsedResult is not null)
+        {
+            await PersistResultAsync(context, parsedResult, repository, cancellationToken);
+            return new ThreadSynthesisExecutionResult(
+                rootCollectorItemId, true, successAttempt,
+                repaired ? "Thread synthesis succeeded after response repair." : "Thread synthesis succeeded.",
+                parsedResult.Count);
+        }
+
+        await repository.ReleaseSynthesisClaimAsync(rootCollectorItemId, cancellationToken);
+
+        _logger.LogError("[synthesis] ~{Tok}tok  ctx={Ctx}k exhausted after {Max} attempts  root={RootId}",
+         tokK, ctxK, maxAttempts, rootCollectorItemId);
 
         return new ThreadSynthesisExecutionResult(
-            rootCollectorItemId,
-            false,
-            maxAttempts,
-            "All attempts exhausted for this thread; synthesis remains stale.",
-            0);
+            rootCollectorItemId, false, maxAttempts,
+            "All attempts exhausted for this thread; synthesis remains stale.", 0);
     }
 
     private async Task<(IReadOnlyList<ThreadSynthesisIdeaResult> Result, string RawJson)?> TryRepairResponseAsync(
         string originalPrompt,
         string badResponse,
         string error,
+        int contextSize,
         IReadOnlyList<ThreadSynthesisSourceItem> sourceItems,
         CancellationToken cancellationToken)
     {
         var maxRepairAttempts = Math.Max(1, _synthesisOptions.MaxRepairAttempts);
         var previousResponse = badResponse;
+        var ctxK = contextSize / 1024;
 
         for (var repairAttempt = 1; repairAttempt <= maxRepairAttempts; repairAttempt++)
         {
-            _logger.LogWarning(
-                "[synthesis] Repair attempt {RepairAttempt}/{Max} — reason: {Error}",
-                repairAttempt, maxRepairAttempts, error);
-            var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(originalPrompt, previousResponse, error);
-            var estimatedRepairTokens = (int)(repairPrompt.Length / 3.5);
-            _logger.LogDebug("[synthesis] Estimated repair prompt tokens: {Tokens}", estimatedRepairTokens);
-            var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, cancellationToken);
+            var repairPrompt = LLMAnalysisPromptBuilder.BuildRepairPrompt(previousResponse, error);
+            var estimatedTok = (int)(repairPrompt.Length / 4.7);
+            var tokK = estimatedTok >= 1000 ? $"{estimatedTok / 1000.0:F1}k" : estimatedTok.ToString();
+
+            var repairedResponse = await _ollamaHttpClient.GenerateAsync(repairPrompt, false, contextSize, cancellationToken);
+
             if (string.IsNullOrWhiteSpace(repairedResponse))
             {
+                _logger.LogWarning("[repair] {Attempt}/{Max}  ~{Tok}tok  ctx={Ctx}k, empty",
+                    repairAttempt, maxRepairAttempts, tokK, ctxK);
                 continue;
             }
 
             var normalized = NormalizeModelOutput(repairedResponse);
-            if (TryParseResult(normalized, sourceItems, out var repairedResult, out _))
+
+            if (TryParseResult(normalized, sourceItems, out var repairedResult, out var newError))
             {
+                _logger.LogInformation("[repair] {Attempt}/{Max}  ~{Tok}tok  ctx={Ctx}k, {Count} idea(s)",
+                    repairAttempt, maxRepairAttempts, tokK, ctxK, repairedResult!.Count);
                 return (repairedResult!, normalized);
             }
 
+            _logger.LogWarning("[repair] {Attempt}/{Max}  ~{Tok}tok  ctx={Ctx}k, still broken: {Error}",
+                repairAttempt, maxRepairAttempts, tokK, ctxK, newError);
+
+            error = newError!;
             previousResponse = normalized;
         }
 
+        _logger.LogWarning("[repair] gave up after {Max} attempts — last error: {Error}", maxRepairAttempts, error);
         return null;
     }
 
     private async Task PersistResultAsync(
         ThreadSynthesisContext context,
         IReadOnlyList<ThreadSynthesisIdeaResult> ideas,
+        ICollectorItemRepository repository,
         CancellationToken cancellationToken)
     {
         var analyzedAtUtc = DateTime.UtcNow;
@@ -215,7 +243,7 @@ public sealed class ThreadSynthesisService(
             _ollamaOptions.Model,
             analyzedAtUtc);
 
-        await _repository.UpsertThreadSynthesisAsync(upsert, cancellationToken);
+        await repository.UpsertThreadSynthesisAsync(upsert, cancellationToken);
     }
 
     private static bool TryParseResult(

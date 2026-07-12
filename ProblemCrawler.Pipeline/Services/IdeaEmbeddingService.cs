@@ -24,7 +24,7 @@ namespace ProblemCrawler.Pipeline.Services
         private readonly OllamaJobGate _ollamaJobGate = ollamaJobGate;
         public async Task<EmbeddingRunSummary> ExecuteAsync(CancellationToken cancellationToken)
         {
-            await using var _ = await _ollamaJobGate.AcquireAsync(cancellationToken);
+            await using var _ = await _ollamaJobGate.AcquireJobAsync(cancellationToken);
             var evaluated = 0;
             var embedded = 0;
             var skipped = 0;
@@ -46,30 +46,43 @@ namespace ProblemCrawler.Pipeline.Services
 
                 var batch = new List<EmbeddingUpsert>(candidates.Count);
 
-                foreach (var candidate in candidates)
+                var tasks = candidates.Select(async candidate =>
                 {
-                    evaluated++;
-                    var text = BuildEmbedText(candidate);
 
-                    var floats = await _ollamaHttpClient.EmbedAsync(text, cancellationToken);
-                    if (floats is null)
+                    await using var releaser = await _ollamaJobGate.AcquireAvailableSlotsAsync(cancellationToken);
+
+                    var text = BuildEmbedText(candidate);
+                    var  floats = await _ollamaHttpClient.EmbedAsync(text, cancellationToken);
+
+                    if(floats is null)
                     {
                         _logger.LogWarning("Embedding failed for idea {ideaId}", candidate.IdeaId);
-                        failed++;
-                        continue;
+                        return (Success: false, Empty: false, Item: (EmbeddingUpsert?)null);
                     }
-
                     if (floats.Length == 0)
                     {
                         _logger.LogWarning("Empty embedding returned for idea {IdeaId}", candidate.IdeaId);
-                        skipped++;
-                        continue;
+                        return (Success: false, Empty: true, Item: (EmbeddingUpsert?)null);
                     }
 
+                    return (Success: true, Empty: false,
+                        Item: (EmbeddingUpsert?)new EmbeddingUpsert(candidate.IdeaId, _ollamaOptions.EmbedModel, floats, DateTime.UtcNow));
+                });
 
-                    batch.Add(new EmbeddingUpsert(candidate.IdeaId, _ollamaOptions.EmbedModel, floats, DateTime.UtcNow));
-                    embedded++;
+                var results = await Task.WhenAll(tasks);
+
+                foreach (var r in results)
+                {
+                    evaluated++;
+                    if (r.Success)
+                    {
+                        batch.Add(r.Item!);
+                        embedded++;
+                    }
+                    else if (r.Empty) skipped++;
+                    else failed++;
                 }
+
                 if (batch.Count > 0)
                 {
                     try

@@ -3,6 +3,7 @@ using Hangfire.InMemory;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Core.Factory;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Pipeline.Clients;
 using ProblemCrawler.Pipeline.Helper;
@@ -61,7 +62,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IThreadSynthesisSchedulerTask, ThreadSynthesisSchedulerTask>();
         services.AddSingleton<IIdeaEmbeddingSchedulerTask, IdeaEmbeddingSchedulerTask>();
         services.AddSingleton<IClusterJobRunner, ClusterJobRunner>();
+        services.AddSingleton<RepositoryScope>();
         services.AddSingleton<OllamaJobGate>();
+        services.AddSingleton(sp =>
+        {
+            var logger = sp.GetRequiredService<ILogger<OllamaStartupService>>();
+            var runtime = OllamaRuntimeConfiguration.FromConfiguration(configuration);
+            var vramBytes = GpuInfo.GetVramBytes(logger);
+            return new OllamaContextConfiguration(
+                AnalysisContextSize: GpuInfo.GetParallelContextSize(vramBytes, runtime.NumParallel),
+                SynthesisContextSize: GpuInfo.GetParallelContextSize(vramBytes, runtime.SynthesisNumParallel),
+                FullContextSize: GpuInfo.GetOptimalContextSize(vramBytes));
+        });
         services.AddHttpClient<OllamaHttpClient>((sp, client) =>
         {
             var options = sp.GetRequiredService<IOptions<OllamaConfiguration>>().Value;

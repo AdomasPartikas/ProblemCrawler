@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
+using ProblemCrawler.Pipeline.Helper;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -80,7 +81,7 @@ public sealed class OllamaHttpClient(
             return null;
     }
 
-    public async Task<string?> GenerateAsync(string prompt, CancellationToken cancellationToken)
+    public async Task<string?> GenerateAsync(string prompt,bool thinking, int contextSize, CancellationToken cancellationToken)
     {     
             for (var attempt = 0; attempt < _options.MaxRetries; attempt++)
             {
@@ -91,7 +92,12 @@ public sealed class OllamaHttpClient(
                         model = _options.Model,
                         prompt,
                         stream = false,
-                        format = "json"
+                        format = "json",
+                        think = thinking,
+                        options = new
+                        {
+                            num_ctx = contextSize
+                        }
                     };
 
                     var body = JsonSerializer.Serialize(payload, JsonOptions);
@@ -99,7 +105,6 @@ public sealed class OllamaHttpClient(
                     {
                         Content = new StringContent(body, Encoding.UTF8, "application/json")
                     };
-
                     using var response = await _httpClient.SendAsync(request, cancellationToken);
                     var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 

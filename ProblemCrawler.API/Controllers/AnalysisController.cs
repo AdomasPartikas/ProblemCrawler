@@ -31,7 +31,7 @@ public sealed class AnalysisController(
     [ProducesResponseType(typeof(ThreadSynthesisExecutionResult), StatusCodes.Status200OK)]
     public async Task<ActionResult<ThreadSynthesisExecutionResult>> TestThreadSynthesis(Guid rootCollectorItemId, CancellationToken cancellationToken)
     {
-        var result = await _threadSynthesisService.ExecuteForThreadAsync(rootCollectorItemId, cancellationToken);
-        return Ok(result);
+        //var result = await _threadSynthesisService.ExecuteForThreadAsync(rootCollectorItemId, cancellationToken);
+        return Ok();
     }
 }

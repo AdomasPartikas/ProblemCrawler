@@ -35,6 +35,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ClusterJob", "ClusterJob", 
 		Docker\ClusterJob\requirements.txt = Docker\ClusterJob\requirements.txt
 	EndProjectSection
 EndProject
+Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "problemcrawler.frontend", "ProblemCrawler.FrontEnd\problemcrawler.frontend.esproj", "{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -117,6 +119,24 @@ Global
 		{62DE4E91-BDF4-4F8B-ADFC-BEB97F3BE9C1}.Release|x64.Build.0 = Release|Any CPU
 		{62DE4E91-BDF4-4F8B-ADFC-BEB97F3BE9C1}.Release|x86.ActiveCfg = Release|Any CPU
 		{62DE4E91-BDF4-4F8B-ADFC-BEB97F3BE9C1}.Release|x86.Build.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x64.Build.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x64.Deploy.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x86.Build.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Debug|x86.Deploy.0 = Debug|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x64.ActiveCfg = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x64.Build.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x64.Deploy.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x86.ActiveCfg = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x86.Build.0 = Release|Any CPU
+		{2ED4D2C2-B5B2-6C6D-72E8-DEDFE92482BD}.Release|x86.Deploy.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

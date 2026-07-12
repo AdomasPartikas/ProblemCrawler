@@ -2,6 +2,7 @@ import os
 import sys
 import uuid
 import numpy as np
+import umap
 import psycopg2
 from pgvector.psycopg2 import register_vector
 import hdbscan
@@ -48,6 +49,14 @@ def load_config() -> dict:
             "idea":                     require_env("IDEA_TABLE"),
             "embedding_archive":        require_env("EMBEDDING_ARCHIVE_TABLE"),
             "problem_cluster_archive":  require_env("PROBLEM_CLUSTER_ARCHIVE_TABLE"),
+            "umap_projection": require_env("UMAP_PROJECTION_TABLE"),
+        },
+        "umap": {
+            "n_components_cluster": int(optional_env("UMAP_N_COMPONENTS_CLUSTER", "10")),
+            "n_neighbors":          int(optional_env("UMAP_N_NEIGHBORS", "30")),
+            "min_dist_cluster":     float(optional_env("UMAP_MIN_DIST_CLUSTER", "0.02")),
+            "min_dist_viz":         float(optional_env("UMAP_MIN_DIST_VIZ", "0.3")),
+            "random_state":         int(optional_env("UMAP_RANDOM_STATE", "42")),
         },
         "hdbscan": {
             "min_cluster_size": int(require_env("HDBSCAN_MIN_CLUSTER_SIZE")),
@@ -80,6 +89,27 @@ def fetch_embeddings(cur, schema: str, table: dict) -> tuple[list, np.ndarray]:
     ids        = [r[0] for r in rows]
     embeddings = np.array([r[1] for r in rows], dtype=np.float32)
     return ids, embeddings
+def run_umap_for_clustering(embeddings: np.ndarray, umap_config: dict) -> np.ndarray:
+    print(f"[umap] Reducing {embeddings.shape[1]}D → {umap_config['n_components_cluster']}D for clustering...", flush=True)
+    reducer = umap.UMAP(
+        n_components=umap_config["n_components_cluster"],
+        n_neighbors=umap_config["n_neighbors"],
+        min_dist=umap_config["min_dist_cluster"],
+        metric="cosine",
+        random_state=umap_config["random_state"],
+    )
+    return reducer.fit_transform(embeddings).astype(np.float32)
+
+def run_umap_for_visualization(embeddings: np.ndarray, umap_config: dict) -> np.ndarray:
+    print(f"[umap] Reducing {embeddings.shape[1]}D → 2D for visualization...", flush=True)
+    reducer = umap.UMAP(
+        n_components=2,
+        n_neighbors=umap_config["n_neighbors"],
+        min_dist=umap_config["min_dist_viz"],
+        metric="cosine",
+        random_state=umap_config["random_state"],
+    )
+    return reducer.fit_transform(embeddings).astype(np.float32)
 
 def snapshot_state(cur, table: dict, run_id: str) -> int:
 
@@ -96,7 +126,10 @@ def snapshot_state(cur, table: dict, run_id: str) -> int:
             e."Embedding",
             e."ClusterId",
             e."ClusterConfidence",
-            i."RawJson",
+            i."RawJson" || jsonb_build_object(
+                'supportingMentionCount',       i."SupportingMentionCount",
+                'supportingDistinctAuthorCount', i."SupportingDistinctAuthorCount"
+            ),
             NOW()
         FROM {quote_ident(table["source"])} e
         JOIN {quote_ident(table["idea"])} i
@@ -110,7 +143,7 @@ def insert_cluster_run(cur, table: dict, run_id: str, min_cluster_size: int, min
         INSERT INTO {quote_ident(table["cluster_run"])}
             ("Id", "Algorithm", "MinClusterSize", "MinSamples", "IsPinned", "CreatedAtUtc")
         VALUES (%s, %s, %s, %s, FALSE, NOW())
-    """, (run_id, "hdbscan", min_cluster_size, min_samples))
+    """, (run_id, "hdbscan+umap", min_cluster_size, min_samples))
 
 def save_cluster_assignments(cur, table: dict, run_id: str, ids: list, labels, probabilities) -> None:
     batch = [
@@ -144,7 +177,50 @@ def save_problem_clusters(cur, table: dict, run_id: str, labels, probabilities) 
     """, batch)
 
     return len(batch)
+def save_umap_projections(cur, table: dict, run_id: str, ids: list, coords: np.ndarray) -> None:
+    batch = [
+        (str(uuid.uuid4()), run_id, str(ids[i]), float(coords[i, 0]), float(coords[i, 1]))
+        for i in range(len(ids))
+    ]
+    cur.executemany(f"""
+        INSERT INTO {quote_ident(table["umap_projection"])}
+            ("Id", "ClusterRunId", "ThreadSynthesizedIdeaEmbeddingId", "X", "Y")
+        VALUES (%s, %s, %s, %s, %s)
+    """, batch)
+    print(f"[umap] Saved {len(batch)} 2D projections", flush=True)
+def find_centroid_representatives(ids: list, embeddings_reduced: np.ndarray, labels) -> dict:
+    representatives = {}
+    for label in set(labels):
+        if label == -1:
+            continue
+        indices = np.where(labels == label)[0]
+        cluster_embs = embeddings_reduced[indices]
+        centroid = cluster_embs.mean(axis=0)
+        closest = int(np.argmin(np.linalg.norm(cluster_embs - centroid, axis=1)))
+        representatives[int(label)] = ids[indices[closest]]
+    print(f"[cluster] Found centroid representatives for {len(representatives)} clusters", flush=True)
+    return representatives
 
+def save_cluster_labels(cur, table: dict, run_id: str, representatives: dict) -> None:
+    if not representatives:
+        print("[cluster] No centroid representatives to label", flush=True)
+        return
+
+    batch = [(str(emb_id), run_id, label) for label, emb_id in representatives.items()]
+    cur.executemany(f"""
+        UPDATE {quote_ident(table["problem_cluster"])} pc
+        SET
+            "Label"       = i."ProblemSummary",
+            "Description" = i."ProblemDetails",
+            "Opportunity" = i."ActionabilityRationale"
+        FROM {quote_ident(table["source"])} e
+        JOIN {quote_ident(table["idea"])} i
+            ON i."Id" = e."ThreadSynthesizedIdeaId"
+        WHERE e.{quote_ident(table["id"])} = %s::uuid
+          AND pc."ClusterRunId" = %s
+          AND pc."ClusterId"    = %s
+    """, batch)
+    print(f"[cluster] Labelled {len(batch)} clusters from centroid representatives", flush=True)
 def save_problem_cluster_archive(cur, table: dict, run_id: str, labels, probabilities) -> None:
     unique_labels = [l for l in set(labels) if l != -1]
     if not unique_labels:
@@ -188,6 +264,7 @@ def run_clustering(embeddings: np.ndarray, hdbscan_config: dict):
         min_cluster_size=hdbscan_config["min_cluster_size"],
         min_samples=hdbscan_config["min_samples"],
         metric="euclidean",
+        cluster_selection_method="leaf"
     )
     labels = clusterer.fit_predict(embeddings)
     probabilities = clusterer.probabilities_
@@ -218,9 +295,12 @@ def main() -> int:
                    config["hdbscan"]["min_samples"])
             conn.commit()
 
-            labels, probabilities = run_clustering(embeddings, config["hdbscan"])
+            embeddings_reduced = run_umap_for_clustering(embeddings, config["umap"])
+            labels, probabilities = run_clustering(embeddings_reduced, config["hdbscan"])
 
             has_clusters = any(label != -1 for label in labels)
+
+            representatives = find_centroid_representatives(ids, embeddings_reduced, labels)
 
             if has_clusters:
                 snapped = snapshot_state(cur, config["table"], run_id)
@@ -229,10 +309,13 @@ def main() -> int:
                 print("[cluster] No clusters found, skipping embedding archive", flush=True)
 
             save_cluster_assignments(cur, config["table"], run_id, ids, labels, probabilities)
+            if has_clusters:
+                coords_2d = run_umap_for_visualization(embeddings_reduced, config["umap"])
+                save_umap_projections(cur, config["table"], run_id, ids, coords_2d)
 
             n_clusters = save_problem_clusters(cur, config["table"], run_id, labels, probabilities)
             print(f"[cluster] Saved {n_clusters} clusters for run {run_id}", flush=True)
-
+            save_cluster_labels(cur, config["table"], run_id, representatives)
             save_problem_cluster_archive(cur, config["table"], run_id, labels, probabilities)
             print(f"[cluster] Archived {n_clusters} clusters", flush=True)
 

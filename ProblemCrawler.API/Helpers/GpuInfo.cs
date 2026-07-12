@@ -64,6 +64,14 @@ namespace ProblemCrawler.API.Helpers
                 _ => 4096
             };
         }
+        public static int GetParallelContextSize(long vramBytes, int numParallel)
+        {
+            var baseContext = GetOptimalContextSize(vramBytes);
+            var adjusted = baseContext / Math.Max(1, numParallel);
+            var pow2 = 1;
+            while (pow2 * 2 <= adjusted) pow2 *= 2;
+            return Math.Max(4096, pow2);
+        }
     }
 }
 

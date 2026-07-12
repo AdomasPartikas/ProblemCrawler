@@ -182,62 +182,64 @@ namespace ProblemCrawler.Infrastructure.Repositories
             return new LLMAnalysisContext(current, parent, post);
         }
 
-        public async Task UpsertAnalysedItemAsync(
-            AnalysedItemUpsert analysis,
-            CancellationToken cancellationToken)
+        public async Task UpsertAnalysedItemsBatchAsync(
+             IReadOnlyList<AnalysedItemUpsert> analyses,
+              CancellationToken cancellationToken)
         {
-            var item = await _context.CollectorItems
-                .SingleOrDefaultAsync(x => x.Id == analysis.CollectorItemId, cancellationToken);
+            if (analyses.Count == 0) return;
 
-            if (item is null)
+            var ids = analyses.Select(a => a.CollectorItemId).ToHashSet();
+
+            var items = await _context.CollectorItems
+                .Where(x => ids.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+            var existingAnalyses = await _context.AnalysedItems
+                .Where(x => ids.Contains(x.CollectorItemId))
+                .ToDictionaryAsync(x => x.CollectorItemId, cancellationToken);
+
+            foreach (var analysis in analyses)
             {
-                return;
-            }
+                if (!items.TryGetValue(analysis.CollectorItemId, out var item)) continue;
 
-            var existing = await _context.AnalysedItems
-                .SingleOrDefaultAsync(x => x.CollectorItemId == analysis.CollectorItemId, cancellationToken);
+                var rootCollectorItemId = await ResolveRootCollectorItemIdAsync(item, cancellationToken);
 
-            var isNew = existing is null;
-
-            if (isNew)
-            {
-                existing = new AnalysedItemEntity
+                if (!existingAnalyses.TryGetValue(analysis.CollectorItemId, out var existing))
                 {
-                    Id = Guid.NewGuid(),
-                    CollectorItemId = analysis.CollectorItemId,
-                    UpdatedAtUtc = analysis.AnalyzedAtUtc
-                };
+                    existing = new AnalysedItemEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        CollectorItemId = analysis.CollectorItemId,
+                        UpdatedAtUtc = analysis.AnalyzedAtUtc
+                    };
+                    _context.AnalysedItems.Add(existing);
+                }
+                else
+                {
+                    existing.IsSynthesized = false;
+                    existing.IsSynthesisInProgress = false;
+                    existing.SynthesisClaimedAtUtc = null;
+                }
 
-                _context.AnalysedItems.Add(existing);
+                existing.ContainsProblem = analysis.Result.ContainsProblem;
+                existing.ProblemSummary = analysis.Result.ProblemSummary;
+                existing.ProblemDetails = analysis.Result.ProblemDetails;
+                existing.Actor = analysis.Result.Actor;
+                existing.Industry = analysis.Result.Industry;
+                existing.CurrentWorkaround = analysis.Result.CurrentWorkaround;
+                existing.DesiredOutcome = analysis.Result.DesiredOutcome;
+                existing.UrgencySignal = analysis.Result.UrgencySignal;
+                existing.SoftwareOpportunity = analysis.Result.SoftwareOpportunity;
+                existing.IsActionable = analysis.Result.IsActionable;
+                existing.ActionabilityRationale = analysis.Result.ActionabilityRationale;
+                existing.RawJson = analysis.RawJson;
+                existing.Model = analysis.Model;
+                existing.AnalyzedAtUtc = analysis.AnalyzedAtUtc;
+                existing.UpdatedAtUtc = analysis.AnalyzedAtUtc;
+                existing.RootCollectorItemId = rootCollectorItemId;
+
+                item.AnalysisStage = AnalysisStages.Analysed;
             }
-
-            var rootCollectorItemId = await ResolveRootCollectorItemIdAsync(item, cancellationToken);
-
-            existing.ContainsProblem = analysis.Result.ContainsProblem;
-            existing.ProblemSummary = analysis.Result.ProblemSummary;
-            existing.ProblemDetails = analysis.Result.ProblemDetails;
-            existing.Actor = analysis.Result.Actor;
-            existing.Industry = analysis.Result.Industry;
-            existing.CurrentWorkaround = analysis.Result.CurrentWorkaround;
-            existing.DesiredOutcome = analysis.Result.DesiredOutcome;
-            existing.UrgencySignal = analysis.Result.UrgencySignal;
-            existing.SoftwareOpportunity = analysis.Result.SoftwareOpportunity;
-            existing.IsActionable = analysis.Result.IsActionable;
-            existing.ActionabilityRationale = analysis.Result.ActionabilityRationale;
-            existing.RawJson = analysis.RawJson;
-            existing.Model = analysis.Model;
-            existing.AnalyzedAtUtc = analysis.AnalyzedAtUtc;
-            existing.UpdatedAtUtc = analysis.AnalyzedAtUtc;
-            existing.RootCollectorItemId = rootCollectorItemId;
-
-            if (!isNew)
-            {
-                existing.IsSynthesized = false;
-                existing.IsSynthesisInProgress = false;
-                existing.SynthesisClaimedAtUtc = null;
-            }
-
-            item.AnalysisStage = AnalysisStages.Analysed;
 
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -256,6 +258,10 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     item.IsActionable &&
                     !item.IsSynthesized &&
                     (!item.IsSynthesisInProgress || item.SynthesisClaimedAtUtc < stuckThreshold))
+                .Where(item =>
+                    !_context.ThreadSynthesisRuns.Any(run =>
+                        run.RootCollectorItemId == item.RootCollectorItemId &&
+                        run.LatestAnalysedItemUpdatedAtUtc >= item.UpdatedAtUtc))
                 .Select(item => item.RootCollectorItemId)
                 .Distinct()
                 .Take(effectiveBatchSize)
@@ -510,6 +516,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     UpdatedAtUtc = synthesis.AnalyzedAtUtc
                 });
             }
+            await _context.SaveChangesAsync(cancellationToken);
 
             await _context.AnalysedItems
                 .Where(a =>
@@ -523,7 +530,7 @@ namespace ProblemCrawler.Infrastructure.Repositories
                     .SetProperty(a => a.SynthesisClaimedAtUtc, (DateTime?)null),
                     cancellationToken);
 
-            await _context.SaveChangesAsync(cancellationToken);
+           
         }
         /// <summary>
         /// Inserts or updates a batch of collector item entities in the database asynchronously, ensuring that existing
