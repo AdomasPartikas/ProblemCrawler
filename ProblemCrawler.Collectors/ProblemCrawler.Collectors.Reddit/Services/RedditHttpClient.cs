@@ -123,7 +123,7 @@ public class RedditHttpClient(
 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 220;
+                    var retryAfter = response.Headers.RetryAfter?.Delta?.TotalSeconds ?? 620;
                     _logger.LogRedditRequestRateLimited(url, retryAfter, attempt, _config.MaxRetries);
                     await Task.Delay((int)(retryAfter * 1000), cancellationToken);
                     continue;
