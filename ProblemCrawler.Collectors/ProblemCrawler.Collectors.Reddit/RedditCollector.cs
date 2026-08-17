@@ -7,6 +7,7 @@ using ProblemCrawler.Core.Models.Reddit;
 using ProblemCrawler.Collectors.Reddit.Services;
 using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Records.Reddit;
+using ProblemCrawler.Logging.LogMessages;
 
 namespace ProblemCrawler.Collectors.Reddit;
 
@@ -38,8 +39,13 @@ public class RedditCollector(
 
         if (subreddits.Count == 0)
         {
+            _logger.LogNoSubredditsConfigured();
             yield break;
         }
+
+        _logger.LogCollectorRunStarted(subreddits.Count, _config.FetchComments);
+
+        var processedSubreddits = 0;
 
         foreach (var subreddit in subreddits)
         {
@@ -47,7 +53,11 @@ public class RedditCollector(
             {
                 yield return item;
             }
+
+            processedSubreddits++;
         }
+
+        _logger.LogCollectorRunCompleted(processedSubreddits);
     }
 
     /// <summary>
@@ -57,8 +67,11 @@ public class RedditCollector(
         string subreddit,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        _logger.LogSubredditCollectionStarted(subreddit);
+
         string? afterToken = null;
         int pageCount = 0;
+        var fetchedPages = 0;
 
         while (!HasReachedPageLimit(pageCount))
         {
@@ -68,8 +81,11 @@ public class RedditCollector(
 
             if (HasNoPosts(page))
             {
+                _logger.LogSubredditNoPostsFound(subreddit, pageCount);
                 break;
             }
+
+            fetchedPages++;
 
             await foreach (var item in GatherItemsFromPostsAsync(subreddit, page.Posts, cancellationToken))
             {
@@ -83,6 +99,13 @@ public class RedditCollector(
 
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
         }
+
+        if (_config.MaxPages is > 0 && pageCount >= _config.MaxPages)
+        {
+            _logger.LogCollectorPageLimitReached(subreddit, _config.MaxPages.Value);
+        }
+
+        _logger.LogSubredditCollectionCompleted(subreddit, fetchedPages);
     }
 
     /// <summary>
@@ -143,6 +166,11 @@ public class RedditCollector(
             }
 
             await Task.Delay(_config.RequestDelayMs, cancellationToken);
+        }
+
+        if (_config.MaxCommentsPerPost is > 0 && commentCount >= _config.MaxCommentsPerPost)
+        {
+            _logger.LogCommentLimitReached(post.Id!, subreddit, _config.MaxCommentsPerPost.Value);
         }
     }
 

@@ -3,18 +3,20 @@ using ProblemCrawler.API.Extensions;
 using ProblemCrawler.API.Helpers;
 using ProblemCrawler.Collectors.Reddit.Extensions;
 using ProblemCrawler.Infrastructure;
+using ProblemCrawler.Logging.Configuration;
 using ProblemCrawler.Pipeline.Extensions;
 using Scalar.AspNetCore;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
     .CreateLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog((context, config) =>
-        config.ReadFrom.Configuration(context.Configuration));
+    builder.Host.UseProblemCrawlerLogging(builder.Configuration);
+    builder.Services.AddProblemCrawlerLogging();
 
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();
