@@ -3,6 +3,7 @@ using ProblemCrawler.Core.Constants;
 using ProblemCrawler.Core.Interfaces;
 using ProblemCrawler.Core.Models;
 using ProblemCrawler.Core.Records.Reddit;
+using ProblemCrawler.Logging.LogMessages;
 
 namespace ProblemCrawler.Pipeline.Services;
 
@@ -35,8 +36,11 @@ public class CollectionService(ICollector collector, ICollectorItemRepository re
     public async Task<(int total, List<CollectedItemResponse> items)> CollectAsync(
         CancellationToken cancellationToken)
     {
+        _logger.LogCollectionServiceStarted(_collector.Name);
+
         var buffer = new List<CollectorItem>();
         var responses = new List<CollectedItemResponse>();
+        var persistedTotal = 0;
 
         await foreach (var item in _collector.GatherAsync(cancellationToken))
         {
@@ -53,7 +57,10 @@ public class CollectionService(ICollector collector, ICollectorItemRepository re
 
                 if (buffer.Count >= DbConstants.batchSize)
                 {
+                    var batchSize = buffer.Count;
                     await _repository.InsertBatchAsync(buffer, cancellationToken);
+                    persistedTotal += batchSize;
+                    _logger.LogCollectionBatchPersisted(_collector.Name, batchSize, persistedTotal);
                     buffer.Clear();
                 }
             }
@@ -63,17 +70,20 @@ public class CollectionService(ICollector collector, ICollectorItemRepository re
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to process collected item, skipping");
+                _logger.LogCollectedItemProcessingFailed(ex, _collector.Name, item.SourceId);
             }
         }
 
         if (buffer.Count > 0)
         {
+            var batchSize = buffer.Count;
             await _repository.InsertBatchAsync(buffer, cancellationToken);
+            persistedTotal += batchSize;
+            _logger.LogFinalBatchPersisted(_collector.Name, batchSize, persistedTotal);
             buffer.Clear();
         }
 
-        _logger.LogInformation("Collection completed. Total items collected: {Total}", responses.Count);
+        _logger.LogCollectionServiceCompleted(_collector.Name, responses.Count);
 
         return (responses.Count, responses);
     }

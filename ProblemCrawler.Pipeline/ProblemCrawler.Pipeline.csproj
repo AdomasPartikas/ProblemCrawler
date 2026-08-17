@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ProblemCrawler.Core\ProblemCrawler.Core.csproj" />
+    <ProjectReference Include="..\ProblemCrawler.Logging\ProblemCrawler.Logging.csproj" />
   </ItemGroup>
 
   <ItemGroup>

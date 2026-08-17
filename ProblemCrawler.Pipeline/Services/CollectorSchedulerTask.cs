@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using ProblemCrawler.Core.Configuration;
 using ProblemCrawler.Core.Interfaces;
+using ProblemCrawler.Logging.LogMessages;
 using ProblemCrawler.Pipeline.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +28,7 @@ public sealed class CollectorSchedulerTask(
             var lockAcquired = await _runLock.WaitAsync(0);
             if (!lockAcquired)
             {
+                _logger.LogCollectorSchedulerSkippedConcurrentRun();
                 return;
             }
         }
@@ -51,12 +53,26 @@ public sealed class CollectorSchedulerTask(
         var collectionServices = scope.ServiceProvider.GetServices<ICollectionService>().ToArray();
 
         if (collectionServices.Length == 0)
+        {
+            _logger.LogNoCollectionServicesRegistered();
             return;
+        }
+
+        _logger.LogCollectorSchedulerRunStarted(collectionServices.Length);
+
+        var totalCollectedItems = 0;
+        var serviceIndex = 0;
 
         foreach (var service in collectionServices)
         {
+            serviceIndex++;
+            _logger.LogCollectorServiceExecutionStarted(service.GetType().Name, serviceIndex, collectionServices.Length);
+
             var (total, _) = await service.CollectAsync(CancellationToken.None);
-            _logger.LogInformation("Scheduled collection run completed. Total items: {Total}", total);
+            totalCollectedItems += total;
+            _logger.LogCollectorServiceExecutionCompleted(service.GetType().Name, total);
         }
+
+        _logger.LogCollectorSchedulerRunCompleted(collectionServices.Length, totalCollectedItems);
     }
 }
